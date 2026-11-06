@@ -1,0 +1,88 @@
+# Estorno parcial que volta a ser cobrado (RN-ONPAY-05; decisão 93, "volta a ser cobrado"). Arena
+# E2E Norte: reserva paga com Pix (simulador), o Dono devolve R$ 40,00 com chargeAgain=true
+# (scripts/manage-refund.js) e o jogador vê no detalhe "Estorno parcial", o devolvido com o motivo
+# e "Falta pagar R$ 40,00 no espaço"; no comprovante, "Estorno parcial" e "− R$ 40,00".
+appId: ${APP_ID}
+env:
+  API_URL: http://10.0.2.2:3335
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_NAME: Jogador E2E
+  PLAYER_PASSWORD: senha-e2e-1234
+  SUPER_EMAIL: super.e2e@exemplo.com
+  OWNER_EMAIL: dono.norte.e2e@exemplo.com
+  SPACE_NAME: Arena E2E Norte
+  SPACE_SLUG: arena-e2e-norte
+onFlowStart:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+onFlowComplete:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+---
+- runFlow: ../subflows/login.yaml
+- runFlow:
+    file: ../subflows/reservar-norte.yaml
+    env:
+      HOUR: "12:00"
+      FORMA: pix
+- assertVisible:
+    id: "pix-copia-e-cola"
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${SUPER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/simulator-charge.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}
+      PAYER_NAME: ${PLAYER_NAME}
+      STATUS: PENDING
+      METHOD: PIX
+      ACTION: pay
+      WAIT_STATUS: PAID
+- extendedWaitUntil:
+    visible:
+      id: "pagamento-confirmado"
+    timeout: 30000
+
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${OWNER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/manage-refund.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}
+      PAYER_NAME: ${PLAYER_NAME}
+      AMOUNT_CENTS: "4000"
+      REASON: Quadra sem iluminação
+      CHARGE_AGAIN: "true"
+
+# O detalhe é relido ao abrir pelo comprovante: entra por Meus pagamentos.
+- tapOn:
+    id: "pagamento-ver-item"
+- tapOn:
+    id: "tab-perfil"
+- tapOn:
+    id: "perfil-meus-pagamentos"
+- tapOn:
+    id: "meus-pagamentos-filtro-paid"
+- tapOn:
+    id: "meus-pagamentos-item-${output.REFUNDED_CHARGE_ID}"
+- assertVisible:
+    id: "comprovante-status"
+    text: "Estorno parcial"
+- assertVisible:
+    id: "comprovante-estornos"
+- assertVisible: ".*R\\$ 40,00"
+- assertVisible: "“Quadra sem iluminação”"
+
+- tapOn:
+    id: "comprovante-ver-item"
+- assertVisible:
+    id: "reserva-situacao-pagamento"
+    text: "Estorno parcial"
+- assertVisible:
+    id: "reserva-estorno-parcial"
+- assertVisible: "Devolvido em .*"
+- assertVisible: "Falta pagar R\\$ 40,00 no espaço"

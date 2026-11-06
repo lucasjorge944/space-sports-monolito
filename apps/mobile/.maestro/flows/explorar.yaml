@@ -1,0 +1,146 @@
+# Novo Explorar (tarefa AD.4, revisado na AD.5): atalhos por esporte (RF-SPACE-13), carrossel
+# patrocinado (RF-ADS-04), card patrocinado na lista (RF-ADS-05, RF-ADS-06), Espaços recentes
+# (RF-SPACE-12) e a visibilidade das seções com filtro e busca por nome (docs/05, "Explorar e
+# anúncios").
+# O seed de teste (apps/api/test/e2e-seed/seed.ts) deixa no ar, sem filtro de cidade nem esporte:
+#   - carrossel: "Raquetes E2E em oferta" (empresa, com imagem) e "Arena E2E Norte no destaque"
+#     (anunciante SPACE, sem imagem) → 2 slides, então o indicador em segmentos aparece;
+#   - lista: "Whey E2E para o jogo" (empresa, com imagem, WhatsApp) e "Arena E2E Norte na lista"
+#     (anunciante SPACE, sem imagem → card do espaço com o selo).
+# Os anúncios são sorteados e chegam depois da lista: por isso os ids são regex
+# (`explorar-anuncio-*-.*`) e cada checagem espera (`extendedWaitUntil`). O seed tem 4 espaços na
+# vitrine (Arena E2E, Norte, Oeste e Sul; os dois últimos são da busca por nota) e o card patrocinado
+# entra sempre logo depois do 2º (feed.ts).
+# Não toca no anúncio: o destino sorteado muda (WhatsApp sai do app; espaço abre a página).
+appId: ${APP_ID}
+env:
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_PASSWORD: senha-e2e-1234
+  SPACE_NAME: Arena E2E
+  SPACE_SLUG: arena-e2e
+  SPORT_SLUG: futevolei
+---
+- runFlow: ../subflows/login.yaml
+
+# Sem busca nem filtro: atalhos por esporte e o título da lista.
+- extendedWaitUntil:
+    visible:
+      id: "explorar-atalhos"
+    timeout: 15000
+- assertVisible:
+    id: "explorar-titulo-lista"
+
+# Carrossel patrocinado (RF-ADS-04, RF-ADS-06): chega depois dos atalhos; banner com o rótulo
+# "Patrocinado, <anunciante>. …" e indicador em segmentos (2 peças no seed). O selo desenhado fica
+# fora da árvore de acessibilidade (o Maestro não o vê; coberto pelo Jest): vale o rótulo do banner.
+- extendedWaitUntil:
+    visible:
+      id: "explorar-carrossel"
+    timeout: 15000
+- assertVisible:
+    id: "explorar-anuncio-banner-.*"
+- assertVisible:
+    text: "Patrocinado, .*"
+- assertVisible:
+    id: "explorar-carrossel-indicador"
+
+# Card patrocinado na lista (RF-ADS-05, RF-ADS-06): obrigatório com o seed.
+- scrollUntilVisible:
+    element:
+      id: "explorar-anuncio-card-.*"
+    direction: DOWN
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "explorar-atalhos"
+    direction: UP
+
+# Espaços recentes: abrir a página do espaço grava no histórico do aparelho.
+- scrollUntilVisible:
+    element:
+      id: "espaco-card-${SPACE_SLUG}"
+    direction: DOWN
+- tapOn:
+    id: "espaco-card-${SPACE_SLUG}"
+- assertVisible:
+    id: "espaco-titulo"
+    text: ${SPACE_NAME}
+- back
+- scrollUntilVisible:
+    element:
+      id: "explorar-recentes"
+    direction: UP
+- assertVisible:
+    id: "explorar-recente-${SPACE_SLUG}"
+- tapOn:
+    id: "explorar-recente-${SPACE_SLUG}"
+- assertVisible:
+    id: "espaco-titulo"
+    text: ${SPACE_NAME}
+- back
+
+# Atalho de esporte (RF-SPACE-13): aplica o filtro, mantém os atalhos (com o selecionado), esconde
+# carrossel e recentes (que agora existem de fato) e troca o título para "Resultados". O card
+# patrocinado continua nos resultados (RF-ADS-05).
+- scrollUntilVisible:
+    element:
+      id: "explorar-atalhos"
+    direction: UP
+- tapOn:
+    id: "explorar-atalho-${SPORT_SLUG}"
+- assertVisible:
+    id: "explorar-atalho-${SPORT_SLUG}"
+    selected: true
+- assertVisible:
+    id: "explorar-titulo-lista"
+    text: "Resultados"
+- assertNotVisible:
+    id: "explorar-carrossel"
+- assertNotVisible:
+    id: "explorar-recentes"
+- scrollUntilVisible:
+    element:
+      id: "explorar-anuncio-card-.*"
+    direction: DOWN
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "explorar-atalhos"
+    direction: UP
+# Tocar de novo tira o filtro: o título volta e o carrossel e os recentes reaparecem.
+- tapOn:
+    id: "explorar-atalho-${SPORT_SLUG}"
+- assertNotVisible:
+    id: "explorar-titulo-lista"
+    text: "Resultados"
+- extendedWaitUntil:
+    visible:
+      id: "explorar-carrossel"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "explorar-recentes"
+    timeout: 10000
+
+# Busca por nome: atalhos, carrossel e recentes somem; o título é "Resultados"; o espaço e o card
+# patrocinado seguem na lista.
+- tapOn:
+    id: "busca-espaco-input"
+- inputText: ${SPACE_NAME}
+- hideKeyboard
+- assertNotVisible:
+    id: "explorar-atalhos"
+- assertNotVisible:
+    id: "explorar-carrossel"
+- assertNotVisible:
+    id: "explorar-recentes"
+- assertVisible:
+    id: "explorar-titulo-lista"
+    text: "Resultados"
+- assertVisible:
+    id: "espaco-card-${SPACE_SLUG}"
+- scrollUntilVisible:
+    element:
+      id: "explorar-anuncio-card-.*"
+    direction: DOWN
+    timeout: 15000

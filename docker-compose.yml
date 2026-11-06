@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_USER: space_sports
+      POSTGRES_PASSWORD: space_sports
+      POSTGRES_DB: space_sports
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U space_sports"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # Storage S3 local para as fotos (opcional, decisão 72): `docker compose --profile storage up -d`.
+  # Variáveis da API e uso: apps/api/README.md, "Fotos no storage". A imagem oficial do MinIO saiu
+  # do Docker Hub; esta é o fork mantido pela comunidade (pgsty), que já traz o cliente `mc`. Fixada
+  # por digest (índice multiarquitetura): a tag de terceiro não pode mudar por baixo.
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    profiles: [storage]
+    command: [server, /data, --console-address, ":9001"]
+    environment:
+      MINIO_ROOT_USER: space_sports
+      MINIO_ROOT_PASSWORD: space_sports_minio
+    ports:
+      - "9000:9000" # API S3
+      - "9001:9001" # console web
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      retries: 10
+
+  # Cria o bucket como o S3 da AWS (C.3): leitura pública só de `spaces/` e `users/` (o papel do
+  # CloudFront), nada público em `uploads/`, que expira em 1 dia. Roda e sai; pode repetir.
+  minio-setup:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    profiles: [storage]
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: [/bin/sh, -c]
+    command:
+      - |
+        set -e
+        mc alias set dev http://minio:9000 space_sports space_sports_minio
+        mc mb --ignore-existing dev/space-sports
+        mc anonymous set download dev/space-sports/spaces
+        mc anonymous set download dev/space-sports/users
+        echo '{"Rules":[{"ID":"expire-uploads","Status":"Enabled","Filter":{"Prefix":"uploads/"},"Expiration":{"Days":1}}]}' \
+          | mc ilm import dev/space-sports
+        echo 'Bucket space-sports pronto.'
+
+volumes:
+  postgres-data:
+  minio-data:

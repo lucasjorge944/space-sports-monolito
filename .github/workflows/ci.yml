@@ -1,0 +1,232 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    # Push só de documentação não roda a CI e, com isso, não dispara o Deploy staging (workflow_run).
+    # Um push que também muda código roda normalmente. O pull_request segue sem filtro.
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  quality:
+    name: Lint, typecheck, unit tests e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turborepo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm exec turbo run typecheck
+
+      - name: Unit tests
+        run: pnpm exec turbo run test
+
+      - name: Build
+        run: pnpm exec turbo run build
+
+      # Falha se packages/api-client (openapi.json + src/generated) estiver desatualizado em
+      # relação à API. Para corrigir: pnpm generate:api-client e commit do resultado.
+      - name: API client up to date
+        run: pnpm exec turbo run generate:check
+
+  api-integration:
+    name: Testes de integração/e2e da API
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: space_sports
+          POSTGRES_PASSWORD: space_sports
+          POSTGRES_DB: space_sports
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U space_sports -d space_sports"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://space_sports:space_sports@localhost:5432/space_sports
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turborepo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: API integration/e2e tests
+        run: pnpm exec turbo run test:e2e --filter=@space-sports/api
+
+      # Testcontainers sobe o próprio Postgres (Docker do runner); não usa o service acima.
+      - name: API database integration tests
+        run: pnpm exec turbo run test:integration --filter=@space-sports/api
+
+  web-e2e-real:
+    name: E2E web (Playwright) contra a API real
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: space_sports
+          POSTGRES_PASSWORD: space_sports
+          # O seed de teste só roda em banco terminado em "_e2e" (apaga as tabelas).
+          POSTGRES_DB: space_sports_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U space_sports -d space_sports_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      # Caixa de e-mail dos specs pos-piloto-* (verificação de conta e convite de equipe): a API
+      # envia por SMTP (1025, ver SMTP_HOST/SMTP_PORT em playwright.real.config.ts) e os specs leem
+      # pela API HTTP do Mailpit (8025, ver support/env.ts). Sem --health-cmd: reaproveita o
+      # healthcheck da imagem e só ajusta os tempos.
+      mailpit:
+        image: axllent/mailpit:v1.32.0
+        ports:
+          - 1025:1025
+          - 8025:8025
+        options: >-
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Lidos por db:migrate e por playwright.real.config.ts / global-setup.ts (que roda o seed).
+      DATABASE_URL: postgres://space_sports:space_sports@localhost:5432/space_sports_e2e
+      E2E_DATABASE_URL: postgres://space_sports:space_sports@localhost:5432/space_sports_e2e
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turborepo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      # A config sobe `node dist/main.js` em apps/api e o `next dev` do web importa os pacotes do
+      # workspace por dist/ (ex.: @space-sports/api-client), então ambos precisam estar compilados.
+      - name: Build da API e dos pacotes usados pelo web
+        run: pnpm exec turbo run build --filter=@space-sports/api --filter='@space-sports/web^...'
+
+      - name: Aplicar migrações
+        run: pnpm --filter @space-sports/api db:migrate
+
+      - name: Instalar o Chromium do Playwright
+        run: pnpm --filter @space-sports/web exec playwright install --with-deps chromium
+
+      # O globalSetup recarrega o seed de teste (apps/api/test/e2e-seed) antes da suíte.
+      - name: Playwright (API real)
+        run: pnpm --filter @space-sports/web test:e2e:real
+
+      - name: Upload do relatório e dos traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-real-traces
+          path: |
+            apps/web/test-results/
+            apps/web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

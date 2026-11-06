@@ -1,0 +1,6 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": { "dependsOn": ["^build"] }
+  }
+}

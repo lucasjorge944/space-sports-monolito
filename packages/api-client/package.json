@@ -1,0 +1,35 @@
+{
+  "name": "@space-sports/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "generate": "node scripts/generate.mjs",
+    "generate:check": "node scripts/generate.mjs --check",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@space-sports/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.90.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@space-sports/config": "workspace:*",
+    "@tanstack/react-query": "5.104.5",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "orval": "8.43.0",
+    "react": "19.3.1",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}

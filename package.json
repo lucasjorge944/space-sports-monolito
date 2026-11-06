@@ -1,0 +1,39 @@
+{
+  "name": "space-sports",
+  "private": true,
+  "packageManager": "pnpm@12.15.0",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "test:integration": "turbo run test:integration",
+    "generate:api-client": "turbo run generate --filter=@space-sports/api-client",
+    "generate:api-client:check": "turbo run generate:check --filter=@space-sports/api-client",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @space-sports/api db:generate",
+    "db:migrate": "pnpm --filter @space-sports/api db:migrate",
+    "db:seed": "pnpm --filter @space-sports/api db:seed",
+    "db:seed:demo": "pnpm --filter @space-sports/api db:seed:demo",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.3",
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0",
+    "turbo": "2.11.10",
+    "typescript": "6.0.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,jsonc,css}": "biome check --write --no-errors-on-unmatched"
+  }
+}

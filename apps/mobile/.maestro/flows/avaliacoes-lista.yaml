@@ -1,0 +1,84 @@
+# Ver as avaliações (RF-REVIEW-03/04; docs/05, "Avaliações (2), (5) e (6)"): selo "★ 4,2 (6)" no
+# card da Arena E2E (6 avaliações no seed: 5, 4, 5, 2, 5 e 4 → média 4,2) e "Novo" na Arena E2E
+# Norte (2), bloco "Avaliações" na página com o resumo, "Ver todas as 6 avaliações", filtro por nota e
+# o menu "Denunciar" com os motivos (sem enviar). Só lê: não muda dados. Supõe a Arena E2E sem a
+# avaliação do jogador.e2e (o fluxo avaliacao-reserva-passada apaga a dele no fim).
+appId: ${APP_ID}
+env:
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_PASSWORD: senha-e2e-1234
+---
+- runFlow: ../subflows/login.yaml
+
+# Selo "Novo" na Arena E2E Norte (menos de 5 avaliações).
+- tapOn:
+    id: "busca-espaco-input"
+- inputText: "Arena E2E Norte"
+- hideKeyboard
+- assertVisible:
+    id: "espaco-card-arena-e2e-norte"
+- assertVisible:
+    id: "selo-novo"
+
+# Selo com a média na Arena E2E.
+- tapOn:
+    id: "busca-espaco-input"
+- eraseText
+- inputText: "Arena E2E"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "espaco-card-arena-e2e"
+- assertVisible:
+    id: "selo-avaliacao"
+# A média e o total pelo rótulo do card (o selo em si é um contêiner sem texto próprio).
+- assertVisible:
+    id: "espaco-card-arena-e2e"
+    text: ".*nota 4,2 de 5, 6 avaliações.*"
+- tapOn:
+    id: "espaco-card-arena-e2e"
+
+# Página: linha da nota (pelo rótulo, que no iOS substitui o texto) e o bloco com o resumo.
+- assertVisible:
+    id: "espaco-nota"
+    text: "Nota 4,2 de 5, 6 avaliações\\. Ver avaliações"
+- scrollUntilVisible:
+    element:
+      id: "avaliacoes-resumo"
+- assertVisible:
+    id: "avaliacoes-media"
+    text: "4,2"
+- scrollUntilVisible:
+    element:
+      id: "espaco-avaliacoes-ver-todas"
+- assertVisible:
+    id: "espaco-avaliacoes-ver-todas"
+    text: "Ver todas as 6 avaliações"
+- tapOn:
+    id: "espaco-avaliacoes-ver-todas"
+
+# Lista completa com o filtro por nota.
+- assertVisible:
+    id: "avaliacoes-lista"
+- assertVisible:
+    id: "avaliacoes-nota"
+    text: "Nota 4,2 de 5, 6 avaliações"
+- tapOn:
+    id: "avaliacoes-filtro-5"
+- assertVisible:
+    id: "avaliacoes-lista"
+- tapOn:
+    id: "avaliacoes-filtro-todas"
+
+# Denunciar: abre o diálogo com os motivos; enviar sem motivo pede um; cancela sem enviar.
+- tapOn:
+    id: "avaliacao-menu-.*"
+    index: 0
+- tapOn:
+    id: "avaliacao-denunciar-.*"
+- assertVisible:
+    id: "denuncia-motivo-SPAM"
+- tapOn:
+    id: "denuncia-enviar"
+- assertVisible: "Escolha um motivo"
+- tapOn: "Cancelar"

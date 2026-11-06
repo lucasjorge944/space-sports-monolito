@@ -1,0 +1,26 @@
+{
+  "app": "pnpm exec tsx bin/space-sports.ts",
+  "context": {
+    "@aws-cdk/core:defaultCrossStackReferences": "strong",
+    "spaceSports": {
+      "account": "123456789012",
+      "region": "sa-east-1",
+      "domainName": "spacesports.com.br",
+      "github": {
+        "repository": "Space-Sports-Apps/mobile-web",
+        "subjectPrefix": "repo:Space-Sports-Apps@100000001/mobile-web@200000002",
+        "deployBranch": "main"
+      },
+      "staging": {
+        "availabilityZone": "sa-east-1a",
+        "amiId": "ami-03bc6438b0698f290",
+        "instanceType": "t4g.small",
+        "diskSizeGb": 20,
+        "webSubdomain": "staging",
+        "apiSubdomain": "api-staging",
+        "parameterPrefix": "/space-sports/staging",
+        "autoStopCron": "cron(0 20 * * ? *)"
+      }
+    }
+  }
+}

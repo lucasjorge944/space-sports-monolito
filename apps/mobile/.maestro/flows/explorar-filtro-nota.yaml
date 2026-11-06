@@ -1,0 +1,252 @@
+# Filtro "4+ estrelas" e ordem "Melhor avaliados" no Explorar (decisão 109; docs/05, "Avaliações").
+# Só lê: não muda dados e pode ser repetido.
+#
+# O seed de teste (apps/api/test/e2e-seed/seed.ts) tem 4 espaços na vitrine, sem localização (o login
+# não dá a permissão, então a ordem padrão é "Por nome"):
+#   Arena E2E        slug arena-e2e        ★ 4,2 (6 avaliações)  nota pública, 4+
+#   Arena E2E Norte  slug arena-e2e-norte  "Novo" (2 avaliações)  sem nota pública
+#   Arena E2E Oeste  slug arena-e2e-oeste  ★ 3,4 (5 avaliações)  nota pública, abaixo de 4
+#   Arena E2E Sul    slug arena-e2e-sul    ★ 4,8 (5 avaliações)  nota pública, 4+
+# Por nome:            Arena E2E, Norte, Oeste, Sul.
+# Melhor avaliados:    Sul, Arena E2E, Oeste e, por último, Norte (o "Novo").
+# 4+ estrelas:         só Arena E2E e Sul (Oeste fica abaixo de 4 e o Norte nem tem nota pública).
+# O card patrocinado da lista (RF-ADS-05) não segue o filtro nem a ordem: fica de fora das conferências.
+#
+# A ordem é conferida por posição relativa (`above`/`below`) entre dois cards vizinhos que aparecem
+# juntos na tela: cada card tem a altura de uma foto 4:5, então o fluxo rola até o segundo com
+# `visibilityPercentage` baixo para o primeiro ainda aparecer. Os pares escolhidos são os que mudam
+# de lado entre "Por nome" e "Melhor avaliados": Sul/Arena E2E e Norte/Oeste. O card patrocinado
+# entra depois do 2º espaço, então Arena E2E e Oeste não são vizinhos na ordem por nota.
+appId: ${APP_ID}
+env:
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_PASSWORD: senha-e2e-1234
+  CARD_E2E: espaco-card-arena-e2e
+  CARD_NORTE: espaco-card-arena-e2e-norte
+  CARD_OESTE: espaco-card-arena-e2e-oeste
+  CARD_SUL: espaco-card-arena-e2e-sul
+---
+- runFlow: ../subflows/login.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "explorar-titulo-lista"
+    timeout: 15000
+
+# 1. Sem filtro: os quatro espaços, o botão de filtros sem contagem e o Explorar completo.
+- assertVisible:
+    id: "busca-filtros"
+    text: "Filtros"
+- assertVisible:
+    id: "explorar-atalhos"
+- scrollUntilVisible:
+    element:
+      id: ${CARD_E2E}
+    direction: DOWN
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: ${CARD_NORTE}
+    direction: DOWN
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: ${CARD_OESTE}
+    direction: DOWN
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: ${CARD_SUL}
+    direction: DOWN
+    timeout: 15000
+
+# 2. Liga "4+ estrelas": a folha mostra a opção desmarcada e, depois, marcada.
+- tapOn:
+    id: "busca-filtros"
+- assertVisible:
+    id: "filtros-nota-4"
+    checked: false
+- assertVisible:
+    id: "filtros-ordem-distancia"
+    checked: true
+- assertVisible:
+    id: "filtros-ordem-nota"
+    checked: false
+- tapOn:
+    id: "filtros-nota-4"
+- assertVisible:
+    id: "filtros-nota-4"
+    checked: true
+- tapOn:
+    id: "filtros-ver-espacos"
+
+# Entram Arena E2E e Sul; saem Oeste (3,4) e Norte ("Novo"). A lista troca de uma vez, então a
+# saída dos dois é esperada em vez de conferida na hora. O filtro conta como 1 ativo e a lista vira
+# "Resultados" (sem carrossel nem recentes).
+- extendedWaitUntil:
+    notVisible:
+      id: ${CARD_OESTE}
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: ${CARD_NORTE}
+    timeout: 15000
+- assertVisible:
+    id: "busca-filtros"
+    text: "Filtros, 1 ativo"
+- assertVisible:
+    id: "explorar-titulo-lista"
+    text: "Resultados"
+- assertNotVisible:
+    id: "explorar-carrossel"
+- assertNotVisible:
+    id: "explorar-recentes"
+- scrollUntilVisible:
+    element:
+      id: ${CARD_E2E}
+    direction: UP
+    timeout: 15000
+- assertVisible:
+    id: ${CARD_E2E}
+- scrollUntilVisible:
+    element:
+      id: ${CARD_SUL}
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 15000
+# Ordem padrão (por nome): Arena E2E antes do Sul.
+- assertVisible:
+    id: ${CARD_SUL}
+    below:
+      id: ${CARD_E2E}
+# O fim da lista: o patrocinado segue lá, e Oeste e Norte continuam de fora.
+- scrollUntilVisible:
+    element:
+      id: "explorar-anuncio-card-.*"
+    direction: DOWN
+    timeout: 15000
+- assertNotVisible:
+    id: ${CARD_OESTE}
+- assertNotVisible:
+    id: ${CARD_NORTE}
+
+# 3. Troca para "Melhor avaliados" com o "4+ estrelas" ainda ligado: o Sul (4,8) passa à frente da
+# Arena E2E (4,2). Dois filtros ativos (a ordem conta).
+- tapOn:
+    id: "busca-filtros"
+- tapOn:
+    id: "filtros-ordem-nota"
+- assertVisible:
+    id: "filtros-ordem-nota"
+    checked: true
+- assertVisible:
+    id: "filtros-ordem-distancia"
+    checked: false
+- assertVisible:
+    id: "filtros-nota-4"
+    checked: true
+- tapOn:
+    id: "filtros-ver-espacos"
+- assertVisible:
+    id: "busca-filtros"
+    text: "Filtros, 2 ativos"
+- scrollUntilVisible:
+    element:
+      id: ${CARD_SUL}
+    direction: UP
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: ${CARD_E2E}
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 15000
+- assertVisible:
+    id: ${CARD_E2E}
+    below:
+      id: ${CARD_SUL}
+
+# 4. Tira só o "4+ estrelas" e fica a ordem por nota: voltam Oeste (3,4) e o "Novo" Norte, que
+# vai para o fim, depois do Oeste (por nome, o Norte vem antes). Um filtro ativo.
+- tapOn:
+    id: "busca-filtros"
+- tapOn:
+    id: "filtros-nota-4"
+- assertVisible:
+    id: "filtros-nota-4"
+    checked: false
+- assertVisible:
+    id: "filtros-ordem-nota"
+    checked: true
+- tapOn:
+    id: "filtros-ver-espacos"
+- assertVisible:
+    id: "busca-filtros"
+    text: "Filtros, 1 ativo"
+- scrollUntilVisible:
+    element:
+      id: ${CARD_OESTE}
+    direction: DOWN
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: ${CARD_NORTE}
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 15000
+- assertVisible:
+    id: ${CARD_NORTE}
+    below:
+      id: ${CARD_OESTE}
+# O selo "Novo" é do Norte (sem nota pública); o scroll garante que ele esteja na tela.
+- scrollUntilVisible:
+    element:
+      id: "selo-novo"
+    direction: DOWN
+    timeout: 15000
+
+# 5. "Limpar" volta ao normal: liga o "4+ estrelas" de novo (com a ordem por nota ainda marcada) e
+# um só toque desfaz os dois: nenhum filtro, a ordem padrão (por nome) e o Explorar completo.
+- tapOn:
+    id: "busca-filtros"
+- tapOn:
+    id: "filtros-nota-4"
+- tapOn:
+    id: "filtros-limpar"
+- assertVisible:
+    id: "filtros-nota-4"
+    checked: false
+- assertVisible:
+    id: "filtros-ordem-distancia"
+    checked: true
+- assertVisible:
+    id: "filtros-ordem-nota"
+    checked: false
+- tapOn:
+    id: "filtros-ver-espacos"
+- assertVisible:
+    id: "busca-filtros"
+    text: "Filtros"
+- assertNotVisible:
+    id: "explorar-titulo-lista"
+    text: "Resultados"
+- extendedWaitUntil:
+    visible:
+      id: "explorar-carrossel"
+    timeout: 15000
+# De volta à ordem por nome: o Sul é o último, depois do Oeste.
+- scrollUntilVisible:
+    element:
+      id: ${CARD_OESTE}
+    direction: DOWN
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: ${CARD_SUL}
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 15000
+- assertVisible:
+    id: ${CARD_SUL}
+    below:
+      id: ${CARD_OESTE}

@@ -1,0 +1,181 @@
+name: Deploy staging
+
+# Publica as imagens no ECR e aplica no servidor por SSM Run Command. Passo a passo e variáveis:
+# infra/README.md.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Um deploy de cada vez, sem cancelar o que está em andamento: ele pode estar no meio das migrações.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: sa-east-1
+
+jobs:
+  # Vem antes do build porque o staging fica desligado quando não está em uso: sem esta checagem, cada
+  # push no main gastaria a cota do plano Free construindo imagens que ninguém aplicaria.
+  instance:
+    name: Conferir a instância
+    # Sem a variável, os jobs são pulados e a execução termina sem erro: a infraestrutura ainda não
+    # existe. O `workflow_run` confere a origem porque o filtro `branches` olha só o nome do branch, e
+    # um fork pode ter um `main`. Só o `main` assume o papel na AWS.
+    if: >-
+      vars.AWS_DEPLOY_ROLE_ARN != '' && (
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository)
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Não adicione `environment:` a nenhum dos jobs: ele muda o claim `sub` do OIDC, e a AWS recusa o
+    # token.
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      instance-id: ${{ steps.state.outputs.instance-id }}
+      running: ${{ steps.state.outputs.running }}
+    steps:
+      - name: Assumir o papel de deploy
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: deploy-staging-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Depois da CI, instância desligada não é erro. Quem dispara à mão quer o deploy e precisa saber
+      # que ele não aconteceu.
+      - name: Ler o estado
+        id: state
+        run: |
+          instance_id=$(aws ssm get-parameter --name /space-sports/staging/instance-id \
+            --query Parameter.Value --output text)
+          state=$(aws ec2 describe-instance-status --instance-ids "$instance_id" \
+            --include-all-instances --query 'InstanceStatuses[0].InstanceState.Name' --output text)
+          echo "instance-id=$instance_id" >> "$GITHUB_OUTPUT"
+          if [ "$state" = running ]; then
+            echo "running=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "running=false" >> "$GITHUB_OUTPUT"
+          message="Instância $instance_id em estado $state: deploy não aplicado."
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            echo "::error::$message Ligue com infra/scripts/staging.sh start."
+            exit 1
+          fi
+          echo "::warning::$message"
+
+  deploy:
+    name: Imagens arm64 e deploy no servidor
+    needs: instance
+    if: needs.instance.outputs.running == 'true'
+    # Runner arm64 nativo: disponível em repositório privado desde 29/01/2026, com 2 vCPUs, e dispensa
+    # emular o `next build` com QEMU.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      # No `workflow_run`, github.sha é o último commit do main, e não o que a CI aprovou.
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.IMAGE_TAG }}
+          persist-credentials: false
+
+      - name: Assumir o papel de deploy
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: deploy-staging-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login no ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+
+      # O Postgres é identificado pelo conteúdo do Dockerfile, para só ser recriado quando ele mudar.
+      # As tags são imutáveis, e pular o que já existe permite repetir o deploy do mesmo commit. Só
+      # imagem ausente leva ao build: erro de permissão ou de rede tem que parar aqui.
+      - name: Conferir o que já está publicado
+        id: images
+        run: |
+          postgres_tag="17-$(sha256sum infra/staging/postgres/Dockerfile | cut -c1-12)"
+          echo "POSTGRES_IMAGE_TAG=$postgres_tag" >> "$GITHUB_ENV"
+          check() {
+            local errors
+            if errors=$(aws ecr describe-images --repository-name "space-sports/$1" \
+              --image-ids "imageTag=$2" 2>&1 > /dev/null); then
+              echo "$1=published" >> "$GITHUB_OUTPUT"
+            elif grep -q ImageNotFoundException <<< "$errors"; then
+              echo "$1=missing" >> "$GITHUB_OUTPUT"
+            else
+              echo "$errors" >&2
+              exit 1
+            fi
+          }
+          check api "$IMAGE_TAG"
+          check web "$IMAGE_TAG"
+          check postgres "$postgres_tag"
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Imagem da API
+        if: steps.images.outputs.api == 'missing'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ steps.ecr.outputs.registry }}/space-sports/api:${{ env.IMAGE_TAG }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Imagem do web
+        if: steps.images.outputs.web == 'missing'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          # O rewrite de /v1 é fixado no build e aponta para o serviço `api` do compose.
+          build-args: API_URL=http://api:3333
+          tags: ${{ steps.ecr.outputs.registry }}/space-sports/web:${{ env.IMAGE_TAG }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Imagem do Postgres
+        if: steps.images.outputs.postgres == 'missing'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: infra/staging/postgres
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ steps.ecr.outputs.registry }}/space-sports/postgres:${{ env.POSTGRES_IMAGE_TAG }}
+
+      - name: Aplicar no servidor
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          INSTANCE_ID: ${{ needs.instance.outputs.instance-id }}
+        run: bash infra/scripts/apply-staging.sh

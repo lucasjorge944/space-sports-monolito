@@ -1,0 +1,2 @@
+ALTER TABLE "court_sports" DROP CONSTRAINT "court_sports_max_players_positive";--> statement-breakpoint
+ALTER TABLE "court_sports" ADD CONSTRAINT "court_sports_max_players_range" CHECK ("court_sports"."max_players" BETWEEN 1 AND 20);

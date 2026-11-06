@@ -1,0 +1,45 @@
+# Etapa "Conta" do cadastro (decisões 64 e 70): nome, e-mail único, telefone obrigatório (máscara
+# brasileira, enviado em E.164) e senha. Termina na etapa "Sobre você". Parte do app zerado.
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true
+- runScript: ../scripts/signup-email.js
+- assertVisible:
+    id: "login-titulo"
+- tapOn:
+    id: "login-criar-conta"
+- assertVisible:
+    id: "cadastro-titulo"
+- tapOn:
+    id: "cadastro-nome"
+- inputText: ${SIGNUP_NAME}
+- tapOn:
+    id: "cadastro-email"
+- inputText: ${output.SIGNUP_EMAIL}
+# Telefone incompleto é recusado no campo, sem ir à API.
+- tapOn:
+    id: "cadastro-telefone"
+- inputText: "3199"
+- tapOn:
+    id: "cadastro-senha"
+- inputText: ${SIGNUP_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "cadastro-criar"
+- assertVisible: "Informe o telefone com DDD"
+- assertVisible:
+    id: "cadastro-titulo"
+# Completa o número: a máscara formata enquanto se digita.
+- tapOn:
+    id: "cadastro-telefone"
+- eraseText: 10
+- inputText: "31999998888"
+- assertVisible:
+    id: "cadastro-telefone"
+    text: "(31) 99999-8888"
+- hideKeyboard
+- tapOn:
+    id: "cadastro-criar"
+- assertVisible:
+    id: "sobre-voce-titulo"

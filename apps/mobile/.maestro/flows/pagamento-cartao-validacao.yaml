@@ -1,0 +1,102 @@
+# Validação e máscaras do formulário do cartão (docs/05, "App — (3)"; RN-ONPAY-10), na etapa do
+# cartão do formulário de reservar: a reserva só nasce com o token, então nada é criado aqui.
+# Sem dados, os quatro erros; número que não passa no Luhn, cartão vencido e código curto, com o
+# erro de cada campo; máscaras do número, da validade e do nome; os cartões de teste vêm da API
+# (paymentEnvironment.sandbox) e preenchem tudo; "Pagar com Pix" volta à etapa com o Pix marcado.
+# Arena E2E Norte (modo "No local ou online", gateway fake). Não cria reserva nem cobrança.
+appId: ${APP_ID}
+env:
+  API_URL: http://10.0.2.2:3335
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_NAME: Jogador E2E
+  PLAYER_PASSWORD: senha-e2e-1234
+  SUPER_EMAIL: super.e2e@exemplo.com
+  OWNER_EMAIL: dono.norte.e2e@exemplo.com
+  SPACE_NAME: Arena E2E Norte
+  SPACE_SLUG: arena-e2e-norte
+---
+- runFlow: ../subflows/login.yaml
+- runFlow:
+    file: ../subflows/reservar-norte.yaml
+    env:
+      HOUR: "06:00"
+      FORMA: cartao
+
+# Etapa do cartão: valor, selo de teste, cartões de teste da API e o aviso de que nada é guardado.
+- assertVisible:
+    id: "reservar-titulo"
+    text: "Pagar com cartão"
+- assertVisible:
+    id: "reservar-cartao-valor"
+    text: "R\\$ 100,00"
+- assertVisible:
+    id: "pagamento-selo-teste"
+- assertVisible:
+    id: "cartao-testes"
+- assertVisible:
+    id: "cartao-teste-aprova"
+- assertVisible:
+    id: "cartao-teste-recusa"
+- assertVisible: "O Space Sports não guarda seu cartão."
+
+# Enviar vazio: um erro por campo, e nada vai para a API.
+- tapOn:
+    id: "cartao-pagar"
+- assertVisible: "Confira o número do cartão"
+- assertVisible: "Informe o nome como está no cartão"
+- assertVisible: "Confira a validade"
+- assertVisible: "Informe o código de segurança"
+
+# Máscaras: número em grupos de 4, validade MM/AA e o nome em caixa alta.
+- tapOn:
+    id: "cartao-numero"
+- inputText: "4111111111111112"
+- assertVisible:
+    id: "cartao-numero"
+    text: "4111 1111 1111 1112"
+- tapOn:
+    id: "cartao-nome"
+- inputText: "maria s oliveira"
+- assertVisible:
+    id: "cartao-nome"
+    text: "MARIA S OLIVEIRA"
+- tapOn:
+    id: "cartao-validade"
+- inputText: "0120"
+- assertVisible:
+    id: "cartao-validade"
+    text: "01/20"
+- tapOn:
+    id: "cartao-cvv"
+- inputText: "12"
+- hideKeyboard
+- tapOn:
+    id: "cartao-pagar"
+# Luhn errado, cartão vencido e código curto (o nome está certo).
+- assertVisible: "Confira o número do cartão"
+- assertVisible: "Este cartão está vencido"
+- assertVisible: "Informe o código de segurança"
+- assertNotVisible: "Informe o nome como está no cartão"
+
+# O cartão de teste preenche com os dados da API e limpa os erros.
+- tapOn:
+    id: "cartao-teste-aprova"
+- assertVisible:
+    id: "cartao-numero"
+    text: "4111 1111 1111 1111"
+- assertNotVisible: "Confira o número do cartão"
+- assertNotVisible: "Este cartão está vencido"
+
+# "Pagar com Pix" volta à etapa de pagamento com o Pix marcado, sem criar nada.
+- tapOn:
+    id: "cartao-pagar-pix"
+- assertVisible:
+    id: "reservar-titulo"
+    text: "Reservar · ${SPACE_NAME}"
+- scrollUntilVisible:
+    element:
+      id: "reservar-confirmar"
+    direction: DOWN
+- assertVisible:
+    id: "reservar-confirmar"
+    text: "Pagar com Pix"

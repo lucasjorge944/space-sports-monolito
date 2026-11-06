@@ -1,0 +1,86 @@
+# Desistir da reserva aguardando pagamento (RF-ONPAY-04, RN-ONPAY-02; decisão 96).
+# Liga o modo "Online obrigatório" na Arena E2E Norte (Dono, por script), reserva com Pix e, no
+# detalhe "Falta pagar para confirmar", desiste pelo alerta nativo: a reserva fica cancelada com
+# "Você desistiu antes de pagar." e o horário é liberado. O modo volta para "No local ou online"
+# e as reservas do jogador são canceladas no fim, mesmo se o fluxo falhar no meio.
+appId: ${APP_ID}
+env:
+  API_URL: http://10.0.2.2:3335
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_NAME: Jogador E2E
+  PLAYER_PASSWORD: senha-e2e-1234
+  SUPER_EMAIL: super.e2e@exemplo.com
+  OWNER_EMAIL: dono.norte.e2e@exemplo.com
+  SPACE_NAME: Arena E2E Norte
+  SPACE_SLUG: arena-e2e-norte
+onFlowStart:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+onFlowComplete:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+  - runScript:
+      file: ../scripts/payments-login.js
+      env:
+        LOGIN_EMAIL: ${OWNER_EMAIL}
+        LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+  - runScript:
+      file: ../scripts/set-booking-mode.js
+      env:
+        API_TOKEN: ${output.API_TOKEN}
+        BOOKING_MODE: ONLINE_OPTIONAL
+---
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${OWNER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/set-booking-mode.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}
+      BOOKING_MODE: ONLINE_REQUIRED
+
+- runFlow: ../subflows/login.yaml
+- runFlow:
+    file: ../subflows/reservar-norte.yaml
+    env:
+      HOUR: "08:00"
+      FORMA: pix
+
+# Tela do Pix; sair não cancela nada: o detalhe mostra a reserva aguardando pagamento.
+- assertVisible:
+    id: "pix-contagem"
+- back
+- assertVisible:
+    id: "reserva-aguardando-pagamento"
+- assertVisible: "Falta pagar para confirmar"
+- assertVisible:
+    id: "reserva-pagar"
+# Edição e convites ficam escondidos até pagar.
+- assertNotVisible:
+    id: "reserva-editar"
+- assertNotVisible:
+    id: "reserva-cancelar"
+
+- scrollUntilVisible:
+    element:
+      id: "reserva-desistir"
+    direction: DOWN
+- tapOn:
+    id: "reserva-desistir"
+# Alerta nativo: os botões só existem por texto ("Desistir" é o do alerta, não o da tela).
+- assertVisible: "Desistir da reserva\\?"
+- assertVisible: ".*Se você já pagou, o valor volta sozinho.*"
+- tapOn:
+    text: "Desistir"
+
+- extendedWaitUntil:
+    visible:
+      id: "reserva-cancelada"
+    timeout: 15000
+- assertVisible:
+    id: "reserva-motivo-cancelamento"
+    text: "Você desistiu antes de pagar."
+- assertNotVisible:
+    id: "reserva-aguardando-pagamento"
+- assertNotVisible:
+    id: "reserva-desistir"

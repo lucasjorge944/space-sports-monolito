@@ -1,0 +1,6 @@
+/* biome-ignore-all lint/suspicious/noUnknownAtRules: diretivas do Tailwind */
+@import "@space-sports/ui-tokens/generated/nativewind.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

@@ -1,0 +1,27 @@
+# Depois do cadastro as abas assumem: a verificação do e-mail abre por cima e, no primeiro acesso,
+# o onboarding da localização. A ordem entre os dois não é garantida, então trata cada um se aparecer.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      visible:
+        id: "verificar-email-agora-nao"
+    commands:
+      - tapOn:
+          id: "verificar-email-agora-nao"
+- runFlow:
+    when:
+      visible:
+        id: "localizacao-agora-nao"
+    commands:
+      - tapOn:
+          id: "localizacao-agora-nao"
+- runFlow:
+    when:
+      visible:
+        id: "verificar-email-agora-nao"
+    commands:
+      - tapOn:
+          id: "verificar-email-agora-nao"
+- assertVisible:
+    id: "tab-perfil"

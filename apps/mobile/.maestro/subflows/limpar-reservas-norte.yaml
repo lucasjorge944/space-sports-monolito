@@ -1,0 +1,14 @@
+# Limpeza dos fluxos de pagamento (onFlowStart/onFlowComplete): cancela pela API as reservas
+# futuras ativas do jogador na Arena E2E Norte, para o fluxo poder rodar de novo no mesmo horário
+# (scripts/cancel-player-bookings.js). Env: API_URL, PLAYER_EMAIL, PLAYER_PASSWORD e SPACE_SLUG.
+appId: ${APP_ID}
+---
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${PLAYER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/cancel-player-bookings.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}

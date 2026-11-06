@@ -1,0 +1,81 @@
+# Completar perfil (RF-AUTH-02, decisões 64, 66 e 70): conta antiga sem telefone entra e é levada
+# a pedir só o telefone antes de qualquer outra tela do app; o telefone vale em E.164 (máscara
+# brasileira), e a etapa "Sobre você" vem depois, com "Pular". Usa o jogador sem telefone do seed
+# de teste (apps/api/test/e2e-seed, `jogador.semfone.e2e@exemplo.com`). Como o seed é refeito a cada
+# rodada do e2e, a conta volta a não ter telefone; sem re-semear, o fluxo só roda uma vez por banco.
+appId: ${APP_ID}
+env:
+  PLAYER_EMAIL: jogador.semfone.e2e@exemplo.com
+  PLAYER_PASSWORD: senha-e2e-1234
+---
+- launchApp:
+    clearState: true
+# Primeiro acesso: onboarding da localização (se aparecer).
+- runFlow:
+    when:
+      visible:
+        id: "localizacao-agora-nao"
+    commands:
+      - tapOn:
+          id: "localizacao-agora-nao"
+- assertVisible:
+    id: "login-titulo"
+- tapOn:
+    id: "login-email"
+- inputText: ${PLAYER_EMAIL}
+- tapOn:
+    id: "login-senha"
+- inputText: ${PLAYER_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-entrar"
+
+# Sem telefone, nenhuma aba abre: a guarda leva à tela de completar, que pede só o telefone
+# (o nome da conta já existe) e deixa sair.
+- assertVisible:
+    id: "completar-perfil-titulo"
+- assertVisible:
+    id: "completar-perfil-telefone"
+- assertNotVisible:
+    id: "completar-perfil-nome"
+- assertVisible:
+    id: "completar-perfil-sair"
+- assertNotVisible:
+    id: "tab-explorar"
+
+# Telefone incompleto é recusado no campo, sem sair da tela.
+- tapOn:
+    id: "completar-perfil-telefone"
+- inputText: "3199"
+- hideKeyboard
+- tapOn:
+    id: "completar-perfil-continuar"
+- assertVisible: "Informe o telefone com DDD"
+- assertVisible:
+    id: "completar-perfil-titulo"
+
+# Telefone completo: a máscara formata, e a conta segue para "Sobre você" (conta sem nada dele).
+- tapOn:
+    id: "completar-perfil-telefone"
+- eraseText: 10
+- inputText: "31966662222"
+- assertVisible:
+    id: "completar-perfil-telefone"
+    text: "(31) 96666-2222"
+- hideKeyboard
+- tapOn:
+    id: "completar-perfil-continuar"
+- assertVisible:
+    id: "sobre-voce-titulo"
+- tapOn:
+    id: "sobre-voce-pular"
+
+# Cadastro em dia: o app abre normalmente e o telefone novo está no Editar perfil.
+- runFlow: ../subflows/depois-do-cadastro.yaml
+- tapOn:
+    id: "tab-perfil"
+- tapOn:
+    id: "perfil-editar"
+- assertVisible:
+    id: "editar-perfil-telefone"
+    text: "(31) 96666-2222"

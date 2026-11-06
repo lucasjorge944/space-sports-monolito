@@ -1,0 +1,84 @@
+# Mensalidade paga com o cartão de teste (RF-ONPAY-05, RN-ONPAY-10, RF-ONPAY-06).
+# Aluno sem o mês pago da Arena E2E Norte (seed: aulas no modo "No local ou online", mensalidade do
+# mês em aberto). Meu plano → "Pagar R$ 150,00" → folha "Como você quer pagar?" → cartão → chip do
+# cartão de teste "Aprova" (dados vindos da API, nada fixo no app) → "Pagamento aprovado" → a
+# mensalidade fica paga e o comprovante aparece em Meus pagamentos.
+# Precisa da API com PAYMENTS_PROVIDER=fake. Paga a mensalidade: para repetir, rode o seed de novo.
+appId: ${APP_ID}
+env:
+  PLAYER_EMAIL: aluno.sempago.e2e@exemplo.com
+  PLAYER_PASSWORD: senha-e2e-1234
+---
+- runFlow: ../subflows/login.yaml
+
+- tapOn:
+    id: "tab-perfil"
+- tapOn:
+    id: "perfil-meus-planos"
+- tapOn:
+    id: "planos-item-.*"
+- scrollUntilVisible:
+    element:
+      id: "plano-mensalidade-.*-pagar"
+    direction: DOWN
+- assertVisible:
+    id: "plano-mensalidade-.*-pagar"
+    text: "Pagar R\\$ 150,00"
+- tapOn:
+    id: "plano-mensalidade-.*-pagar"
+
+# Folha com Pix (marcado) e cartão, sem "No local".
+- assertVisible:
+    id: "pagar-opcao-pix"
+- assertNotVisible:
+    id: "pagar-opcao-local"
+- tapOn:
+    id: "pagar-opcao-cartao"
+- tapOn:
+    id: "pagar-continuar"
+
+# Cartão: os cartões de teste vêm da API (só no ambiente de teste).
+- assertVisible:
+    id: "pagamento-titulo"
+    text: "Pagar com cartão"
+- assertVisible:
+    id: "pagamento-selo-teste"
+- assertVisible:
+    id: "cartao-testes"
+# Validação antes de enviar: sem dados, nada vai para a API.
+- tapOn:
+    id: "cartao-pagar"
+- assertVisible: "Confira o número do cartão"
+- tapOn:
+    id: "cartao-teste-aprova"
+- hideKeyboard
+- tapOn:
+    id: "cartao-pagar"
+- extendedWaitUntil:
+    visible:
+      id: "pagamento-confirmado"
+    timeout: 20000
+- assertVisible: "Pagamento aprovado"
+- assertVisible: ".*Cartão final 1111.*"
+
+# Comprovante e volta ao plano com a mensalidade paga.
+- tapOn:
+    id: "pagamento-ver-comprovante"
+- assertVisible:
+    id: "comprovante-status"
+    text: "Pago"
+- back
+- tapOn:
+    id: "pagamento-ver-item"
+- assertVisible: "Paga com cartão em .*"
+
+# Meus pagamentos (Perfil): sem saldo, com a mensalidade paga.
+- back
+- back
+- tapOn:
+    id: "tab-perfil"
+- tapOn:
+    id: "perfil-meus-pagamentos"
+- assertVisible: ".*não existe saldo no Space Sports.*"
+- assertVisible:
+    id: "meus-pagamentos-item-.*"

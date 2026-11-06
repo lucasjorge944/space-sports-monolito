@@ -1,0 +1,121 @@
+# Planos de consumo da orquestração via Orca.
+# Lido por scripts/orchestration/dispatch.py. Documentação: docs/tarefas/README.md.
+#
+# Cada papel tem uma cadeia de candidatos em ordem de preferência. O dispatch
+# escolhe o primeiro cujo provedor está abaixo dos limiares de uso; se o agente
+# bater no limite durante a execução, relança o próximo da cadeia no mesmo worktree.
+#
+# Modelos válidos (conferidos em 2026-10-27):
+#   claude: opus, sonnet, haiku (fable fica de fora: é cobrado por créditos de uso, fora do plano)
+#            effort: low|medium|high|xhigh|max
+
+repo: id:7ec10b61-926e-46c4-9ca7-f9013333f192
+default_plan: equilibrado
+
+# Percentual usado a partir do qual o provedor sai da escolha.
+thresholds:
+  five_hour: 95
+  weekly: 95
+
+# Texto no terminal que indica limite de uso atingido (regex, sem diferenciar maiúsculas).
+limit_patterns:
+  claude:
+    - "usage limit"
+    - "hit your (usage )?limit"
+    - "limit reached"
+    - "rate_limit_error"
+    - "out of extra usage"
+    - "usage credits"
+
+plans:
+  economico:
+    main: [{ agent: claude, model: sonnet, effort: high }]
+    api-engineer:
+      [
+        { agent: claude, model: sonnet, effort: high },
+        { agent: claude, model: haiku, effort: high },
+      ]
+    web-engineer:
+      [
+        { agent: claude, model: haiku, effort: high },
+        { agent: claude, model: sonnet, effort: medium },
+      ]
+    mobile-engineer:
+      [
+        { agent: claude, model: haiku, effort: high },
+        { agent: claude, model: sonnet, effort: medium },
+      ]
+    qa-engineer:
+      [
+        { agent: claude, model: haiku, effort: medium },
+        { agent: claude, model: sonnet, effort: medium },
+      ]
+    ui-designer: [{ agent: claude, model: sonnet, effort: medium }]
+    code-reviewer: [{ agent: claude, model: sonnet, effort: high }]
+    git-operator:
+      [{ agent: claude, model: haiku, effort: low }, { agent: claude, model: sonnet, effort: low }]
+
+  sonnet:
+    main: [{ agent: claude, model: sonnet, effort: medium }]
+    api-engineer: [{ agent: claude, model: sonnet, effort: high }]
+    web-engineer: [{ agent: claude, model: sonnet, effort: high }]
+    mobile-engineer: [{ agent: claude, model: sonnet, effort: high }]
+    qa-engineer: [{ agent: claude, model: haiku, effort: high }]
+    ui-designer: [{ agent: claude, model: sonnet, effort: medium }]
+    code-reviewer: [{ agent: claude, model: sonnet, effort: high }]
+    git-operator: [{ agent: claude, model: sonnet, effort: low }]
+
+  equilibrado:
+    main: [{ agent: claude, model: opus, effort: medium }]
+    api-engineer:
+      [
+        { agent: claude, model: opus, effort: medium },
+        { agent: claude, model: sonnet, effort: high },
+      ]
+    web-engineer:
+      [
+        { agent: claude, model: sonnet, effort: high },
+        { agent: claude, model: haiku, effort: high },
+      ]
+    mobile-engineer:
+      [
+        { agent: claude, model: sonnet, effort: high },
+        { agent: claude, model: haiku, effort: high },
+      ]
+    qa-engineer:
+      [
+        { agent: claude, model: sonnet, effort: medium },
+        { agent: claude, model: haiku, effort: high },
+      ]
+    ui-designer:
+      [
+        { agent: claude, model: opus, effort: medium },
+        { agent: claude, model: sonnet, effort: high },
+      ]
+    code-reviewer:
+      [
+        { agent: claude, model: opus, effort: medium },
+        { agent: claude, model: sonnet, effort: high },
+      ]
+    git-operator:
+      [{ agent: claude, model: haiku, effort: low }, { agent: claude, model: sonnet, effort: low }]
+
+  forte:
+    main: [{ agent: claude, model: opus, effort: xhigh }]
+    api-engineer:
+      [{ agent: claude, model: opus, effort: xhigh }, { agent: claude, model: opus, effort: high }]
+    web-engineer:
+      [{ agent: claude, model: opus, effort: high }, { agent: claude, model: sonnet, effort: high }]
+    mobile-engineer:
+      [{ agent: claude, model: opus, effort: high }, { agent: claude, model: sonnet, effort: high }]
+    qa-engineer:
+      [
+        { agent: claude, model: sonnet, effort: high },
+        { agent: claude, model: opus, effort: medium },
+      ]
+    ui-designer:
+      [{ agent: claude, model: opus, effort: high }, { agent: claude, model: sonnet, effort: high }]
+    code-reviewer:
+      [{ agent: claude, model: opus, effort: xhigh }, { agent: claude, model: opus, effort: high }]
+    git-operator:
+      [{ agent: claude, model: haiku, effort: low }, { agent: claude, model: sonnet, effort: low }]

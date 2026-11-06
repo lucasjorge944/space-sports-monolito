@@ -1,0 +1,38 @@
+{
+  "name": "@space-sports/ui-tokens",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./generated/*": "./generated/*",
+    "./brand/*": "./brand/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "generated",
+    "brand"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "generate": "pnpm build && node scripts/generate-css.mjs",
+    "brand": "node scripts/brand.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@expo-google-fonts/space-grotesk": "0.4.1",
+    "@resvg/resvg-js": "2.6.2",
+    "@space-sports/config": "workspace:*",
+    "@types/node": "24.19.2",
+    "opentype.js": "2.0.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}

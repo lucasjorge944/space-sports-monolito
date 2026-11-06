@@ -1,0 +1,28 @@
+packages:
+  - apps/*
+  - packages/*
+  - infra
+
+allowBuilds:
+  "@parcel/watcher": false
+  "@swc/core": true
+  "@scarf/scarf": false
+  # drizzle-kit e tsx usam o esbuild; o postinstall só valida o binário da plataforma.
+  esbuild: true
+  # Dependências opcionais do docker-modem (Testcontainers); funcionam sem compilar.
+  cpu-features: false
+  ssh2: false
+  protobufjs: false
+  # Acelerador nativo opcional do msgpackr (BullMQ); sem ele usa a implementação em JS.
+  msgpackr-extract: false
+
+# Versões que o Expo SDK 58 exige (`expo install`) e que foram publicadas há menos tempo que o
+# mínimo de idade de release; sem a exceção a instalação (e a CI) recusa o lockfile. Remover
+# cada linha quando a versão passar da idade mínima.
+minimumReleaseAgeExclude:
+  - "@expo/image-utils@0.12.6"
+  - "@expo/require-utils@58.0.5"
+  - expo-constants@58.0.14
+  - expo-image@58.0.18
+  - expo-location@58.0.20
+  - expo-notifications@58.1.7

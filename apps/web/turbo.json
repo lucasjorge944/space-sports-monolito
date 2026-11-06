@@ -1,0 +1,19 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      // O rewrite de /v1 lê API_URL no build (next.config.ts). O modo estrito do turbo esconde do
+      // processo o que não está declarado, e o rewrite cairia em localhost sem nenhum erro.
+      "env": ["API_URL"]
+    },
+    "typecheck": {
+      // `next typegen` e `next build` escrevem em .next; não podem rodar juntos.
+      "dependsOn": ["^build", "build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    }
+  }
+}

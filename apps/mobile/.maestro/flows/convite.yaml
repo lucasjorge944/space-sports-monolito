@@ -1,0 +1,136 @@
+# Convite com contato: reserva para 3 pessoas → WhatsApp inválido é recusado → convite por nome pelo
+# compartilhamento do sistema → vaga aberta por link → status na lista → cancelamento → deep link
+# com token inválido. Cobre RF-BOOK-04, RN-BOOK-09 e RF-CONTACT-01. Usa o espaço fictício "Arena E2E".
+# Roda no Android: `back` fecha a folha de compartilhamento (nativa, sem testID).
+# O WhatsApp (wa.me) sai do app e fica nos testes de componente (invite-section.test.tsx).
+appId: ${APP_ID}
+env:
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_PASSWORD: senha-e2e-1234
+  SPACE_NAME: Arena E2E
+  SPACE_SLUG: arena-e2e
+  GUEST_NAME: Ana Convidada
+---
+- runFlow: ../subflows/login.yaml
+- runScript: ../scripts/tomorrow-date.js
+
+# Reserva amanhã às 12:00 (a reserva-no-local usa 10:00), para 3 pessoas.
+- tapOn:
+    id: "busca-espaco-input"
+- inputText: ${SPACE_NAME}
+- hideKeyboard
+- tapOn:
+    id: "espaco-card-${SPACE_SLUG}"
+- tapOn:
+    id: "espaco-reservar"
+- tapOn:
+    id: "reservar-data-${output.TOMORROW_DATE}"
+- tapOn:
+    id: "reservar-horario-12:00"
+- tapOn:
+    id: "reservar-quadra-quadra-a"
+- scrollUntilVisible:
+    element:
+      id: "reservar-pessoas-menos"
+    direction: DOWN
+# Parte do mínimo para não depender do valor inicial: o limite do seed é 4.
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: "reservar-pessoas-menos"
+- repeat:
+    times: 2
+    commands:
+      - tapOn:
+          id: "reservar-pessoas-mais"
+- scrollUntilVisible:
+    element:
+      id: "reservar-pagamento-CASH"
+    direction: DOWN
+- tapOn:
+    id: "reservar-pagamento-CASH"
+- scrollUntilVisible:
+    element:
+      id: "reservar-confirmar"
+    direction: DOWN
+- tapOn:
+    id: "reservar-confirmar"
+- assertVisible:
+    id: "reserva-confirmada"
+
+# WhatsApp incompleto não vira convite: o erro aparece e o formulário continua lá.
+- scrollUntilVisible:
+    element:
+      id: "convite-nome"
+    direction: DOWN
+- tapOn:
+    id: "convite-nome"
+- inputText: ${GUEST_NAME}
+- tapOn:
+    id: "convite-whatsapp"
+- inputText: "3199"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "convite-enviar"
+    direction: DOWN
+- tapOn:
+    id: "convite-enviar"
+- assertVisible: "Confira o WhatsApp, com DDD"
+
+# Sem WhatsApp, "Enviar" usa o compartilhamento do sistema.
+- tapOn:
+    id: "convite-whatsapp"
+- eraseText
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "convite-enviar"
+    direction: DOWN
+- tapOn:
+    id: "convite-enviar"
+- back
+- scrollUntilVisible:
+    element:
+      id: "convite-status-ana-convidada"
+    direction: DOWN
+- assertVisible:
+    id: "convite-status-ana-convidada"
+    text: "Convidado"
+
+# Vaga aberta: sem dados, a pessoa preenche na página pública.
+- scrollUntilVisible:
+    element:
+      id: "convite-por-link"
+    direction: DOWN
+- tapOn:
+    id: "convite-por-link"
+- back
+- scrollUntilVisible:
+    element:
+      id: "convite-status-vaga-aberta"
+    direction: DOWN
+- assertVisible:
+    id: "convite-status-vaga-aberta"
+    text: "Aguardando"
+- assertVisible: "Todas as vagas já têm convite."
+
+# Cancela para o fluxo poder repetir.
+- scrollUntilVisible:
+    element:
+      id: "reserva-cancelar"
+    direction: DOWN
+- tapOn:
+    id: "reserva-cancelar"
+- assertVisible: "Cancelar reserva?"
+- tapOn:
+    text: "Cancelar reserva"
+    index: 1
+- assertVisible:
+    id: "reserva-cancelada"
+
+# Deep link com token fora do formato não chega à API.
+- openLink: "spacesports://convite/curto"
+- assertVisible:
+    id: "convite-invalido"

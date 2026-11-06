@@ -1,0 +1,11 @@
+# Avaliações: login do jogador na API + delete-my-review.js (usado em onFlowStart/onFlowComplete).
+# Env: PLAYER_EMAIL, PLAYER_PASSWORD, SPACE_SLUG, API_URL.
+appId: ${APP_ID}
+---
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${PLAYER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/delete-my-review.js

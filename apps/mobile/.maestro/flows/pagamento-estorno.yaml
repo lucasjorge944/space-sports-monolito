@@ -1,0 +1,107 @@
+# Estorno total visto pelo jogador (RF-ONPAY-06, RN-ONPAY-05; decisão 93). Arena E2E Norte: reserva
+# paga com Pix (o Super paga pelo simulador), o Dono estorna tudo pela API da gestão
+# (scripts/manage-refund.js, AMOUNT_CENTS=ALL, abatimento) e o jogador confere em Meus pagamentos
+# (filtro "Estornos"), no comprovante (motivo, destino, "Compartilhar") e no detalhe da reserva
+# ("R$ 100,00 devolvidos ... para o seu Pix.").
+appId: ${APP_ID}
+env:
+  API_URL: http://10.0.2.2:3335
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_NAME: Jogador E2E
+  PLAYER_PASSWORD: senha-e2e-1234
+  SUPER_EMAIL: super.e2e@exemplo.com
+  OWNER_EMAIL: dono.norte.e2e@exemplo.com
+  SPACE_NAME: Arena E2E Norte
+  SPACE_SLUG: arena-e2e-norte
+onFlowStart:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+onFlowComplete:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+---
+- runFlow: ../subflows/login.yaml
+- runFlow:
+    file: ../subflows/reservar-norte.yaml
+    env:
+      HOUR: "11:00"
+      FORMA: pix
+- assertVisible:
+    id: "pix-copia-e-cola"
+
+# O Super paga o Pix; a tela confirma sozinha.
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${SUPER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/simulator-charge.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}
+      PAYER_NAME: ${PLAYER_NAME}
+      STATUS: PENDING
+      METHOD: PIX
+      ACTION: pay
+      WAIT_STATUS: PAID
+- extendedWaitUntil:
+    visible:
+      id: "pagamento-confirmado"
+    timeout: 30000
+
+# O Dono estorna tudo pela gestão.
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${OWNER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/manage-refund.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}
+      PAYER_NAME: ${PLAYER_NAME}
+      AMOUNT_CENTS: ALL
+      REASON: Teste de estorno total
+      CHARGE_AGAIN: "false"
+
+# Meus pagamentos (Perfil), filtro "Estornos": a cobrança estornada, sem saldo.
+- tapOn:
+    id: "pagamento-ver-item"
+- tapOn:
+    id: "tab-perfil"
+- tapOn:
+    id: "perfil-meus-pagamentos"
+- assertVisible: ".*não existe saldo no Space Sports.*"
+- tapOn:
+    id: "meus-pagamentos-filtro-refunds"
+- tapOn:
+    id: "meus-pagamentos-item-${output.REFUNDED_CHARGE_ID}"
+
+# Comprovante: estornado, com o motivo do espaço entre aspas e o destino do dinheiro.
+- assertVisible:
+    id: "comprovante-titulo"
+    text: "Comprovante"
+- assertVisible:
+    id: "comprovante-status"
+    text: "Estornado"
+- assertVisible:
+    id: "comprovante-teste"
+- assertVisible:
+    id: "comprovante-estornos"
+- assertVisible: "“Teste de estorno total”"
+- assertVisible: "Volta para o mesmo Pix."
+- assertVisible: "Pago por"
+- assertVisible:
+    id: "comprovante-compartilhar"
+- assertVisible:
+    id: "comprovante-transacao"
+
+# Detalhe da reserva: o bloco "Pagamento" mostra o estorno.
+- tapOn:
+    id: "comprovante-ver-item"
+- assertVisible:
+    id: "reserva-situacao-pagamento"
+    text: "Estornado"
+- assertVisible:
+    id: "reserva-estornado"
+- assertVisible: ".*devolvidos .*para o seu Pix\\..*"
+- assertVisible:
+    id: "reserva-ver-comprovante"

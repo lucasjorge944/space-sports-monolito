@@ -1,0 +1,29 @@
+{
+  "name": "@space-sports/infra",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cdk": "cdk",
+    "synth": "cdk synth --quiet --strict",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "staging:start": "bash scripts/staging.sh start",
+    "staging:stop": "bash scripts/staging.sh stop",
+    "staging:status": "bash scripts/staging.sh status"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.275.0",
+    "constructs": "10.8.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@space-sports/config": "workspace:*",
+    "@types/node": "22.20.5",
+    "aws-cdk": "2.1147.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5",
+    "yaml": "2.9.1"
+  }
+}

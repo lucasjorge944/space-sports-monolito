@@ -1,0 +1,209 @@
+# Compose do servidor de staging: uma t4g.small, 2 GB de RAM e 2 GB de swap. Roda em
+# /opt/space-sports, e as variáveis ECR_REGISTRY, IMAGE_TAG e POSTGRES_IMAGE_TAG vêm do .env que o
+# deploy.sh grava ali. Valores e parâmetros: infra/README.md.
+#
+# Segredos só nos arquivos de env/, gerados a partir do Parameter Store (fetch-env.sh). `format: raw`
+# lê o valor literal: sem ele, o `$` de uma senha seria interpolado. S3_BUCKET, S3_REGION e
+# S3_PUBLIC_URL também chegam pelo env/api.env: a stack grava os três juntos no `cdk deploy`. A
+# chave dos tokens de entrega dos anúncios (ADS_DELIVERY_SECRET), obrigatória com
+# NODE_ENV=production, chega do mesmo jeito: nunca neste arquivo. O mesmo para a chave HMAC dos
+# webhooks do gateway fake (PAYMENTS_FAKE_WEBHOOK_SECRET, opcional: sem ela, a API gera uma a cada
+# boot, o que basta com uma instância). A chave que cifra o documento do cadastro no gateway
+# (PAYMENTS_DATA_KEY, decisão 97) é obrigatória com NODE_ENV=production e também chega pelo
+# env/api.env; trocá-la deixa os documentos gravados ilegíveis.
+#
+# Os limites de memória somam 1.504 MB e deixam cerca de 400 MB para o sistema, o Docker e o agente
+# do SSM. migrate e seed são curtos e, se apertar, usam o swap.
+name: space-sports
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+x-api-environment: &api-environment
+  NODE_ENV: production
+  NODE_OPTIONS: --max-old-space-size=384
+  JOBS_ENABLED: "true"
+  REDIS_URL: redis://redis:6379
+  BETTER_AUTH_URL: https://api-staging.spacesports.com.br
+  TRUSTED_ORIGINS: https://staging.spacesports.com.br,spacesports://
+  WEB_URL: https://staging.spacesports.com.br
+  SMTP_HOST: smtp.resend.com
+  SMTP_PORT: "465"
+  SMTP_SECURE: "true"
+  SMTP_USER: resend
+  SMTP_FROM: Space Sports <nao-responda@spacesports.com.br>
+  # Pagamento online (decisões 80 a 96): o staging usa o gateway simulado (cartões de teste, Pix de
+  # mentira e o simulador no /super). DEPLOY_ENV=staging é o que permite o fake com
+  # NODE_ENV=production; em produção ele é recusado na subida. Os webhooks do fake vão para a
+  # própria API, dentro do contêiner (127.0.0.1:3333).
+  DEPLOY_ENV: staging
+  PAYMENTS_PROVIDER: fake
+  # Fotos (decisão 72): credenciais do papel de mídia, renovadas pelo host (media-credentials.sh).
+  # Sem chaves, e sem tentar o serviço de metadados, que o contêiner não alcança.
+  AWS_CONFIG_FILE: /run/aws/config
+  AWS_EC2_METADATA_DISABLED: "true"
+
+x-api-service: &api-service
+  image: ${ECR_REGISTRY:?}/space-sports/api:${IMAGE_TAG:?}
+  env_file:
+    - path: ./env/api.env
+      format: raw
+  environment: *api-environment
+  # A pasta, não o arquivo: o host troca o media.json a cada renovação.
+  volumes:
+    - ./aws:/run/aws:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  logging: *logging
+  mem_limit: 512m
+
+services:
+  api:
+    <<: *api-service
+    restart: unless-stopped
+    networks:
+      - edge
+      - data
+
+  # Aplicadas pelo deploy.sh antes de trocar a API. Só a rede de dados: migração não sai para a internet.
+  migrate:
+    <<: *api-service
+    profiles: [ops]
+    command: [node, dist/db/scripts/migrate.js]
+    healthcheck:
+      disable: true
+    networks:
+      - data
+
+  # Seed de demonstração, rodado à mão: `docker compose run --rm seed`. O script recusa
+  # NODE_ENV=production, e ALLOW_DEMO_SEED existe só no seed.env, nunca no ambiente da API.
+  seed:
+    <<: *api-service
+    profiles: [ops]
+    command: [node, dist/db/scripts/seed-demo.js]
+    env_file:
+      - path: ./env/api.env
+        format: raw
+      - path: ./env/seed.env
+        format: raw
+    environment:
+      <<: *api-environment
+      NODE_ENV: development
+    healthcheck:
+      disable: true
+    networks:
+      - edge
+      - data
+
+  web:
+    image: ${ECR_REGISTRY:?}/space-sports/web:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      NODE_OPTIONS: --max-old-space-size=256
+      SITE_URL: https://staging.spacesports.com.br
+      # Login social ligado na API (GOOGLE_CLIENT_* no Parameter Store); lido a cada requisição.
+      AUTH_PROVIDERS: google
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+    mem_limit: 384m
+    networks:
+      - edge
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    # noeviction: o BullMQ não aceita perder chaves. O AOF guarda as filas entre um boot e outro.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --save
+      - ""
+      - --maxmemory
+      - 96mb
+      - --maxmemory-policy
+      - noeviction
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+    mem_limit: 128m
+    networks:
+      - data
+    volumes:
+      - redis-data:/data
+
+  postgres:
+    image: ${ECR_REGISTRY:?}/space-sports/postgres:${POSTGRES_IMAGE_TAG:?}
+    restart: unless-stopped
+    env_file:
+      - path: ./env/postgres.env
+        format: raw
+    environment:
+      POSTGRES_USER: space_sports
+      POSTGRES_DB: space_sports
+    command:
+      - postgres
+      - -c
+      - shared_buffers=96MB
+      - -c
+      - effective_cache_size=256MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=30
+    healthcheck:
+      # Por TCP: no primeiro boot o servidor temporário do initdb só escuta no socket, e o pg_isready
+      # local daria saudável antes de o banco estar pronto para as migrações.
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U space_sports -d space_sports]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    logging: *logging
+    mem_limit: 384m
+    stop_grace_period: 30s
+    networks:
+      - data
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # O único serviço com portas publicadas.
+  caddy:
+    image: caddy:2.11-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    logging: *logging
+    mem_limit: 96m
+    networks:
+      - edge
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+networks:
+  # Caddy, web e API. Tem saída para a internet: a API fala com Resend, S3 e Expo.
+  edge:
+  # Postgres e Redis, sem rota para fora. Só a API e os serviços de operação entram aqui.
+  data:
+    internal: true
+
+volumes:
+  postgres-data:
+  redis-data:
+  caddy-data:
+  caddy-config:

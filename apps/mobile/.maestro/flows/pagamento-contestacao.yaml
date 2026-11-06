@@ -1,0 +1,75 @@
+# Contestação no cartão vista pelo jogador (RN-ONPAY-06). Arena E2E Norte: reserva paga com o
+# cartão de teste que aprova; o Super gera o chargeback pelo simulador (scripts/simulator-charge.js,
+# ACTION=chargeback, esperando a cobrança chegar a CHARGEBACK) e o jogador vê "Contestado no
+# cartão" no comprovante (estorno do tipo contestação) e no detalhe da reserva, que volta a constar
+# como não paga.
+appId: ${APP_ID}
+env:
+  API_URL: http://10.0.2.2:3335
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_NAME: Jogador E2E
+  PLAYER_PASSWORD: senha-e2e-1234
+  SUPER_EMAIL: super.e2e@exemplo.com
+  OWNER_EMAIL: dono.norte.e2e@exemplo.com
+  SPACE_NAME: Arena E2E Norte
+  SPACE_SLUG: arena-e2e-norte
+onFlowStart:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+onFlowComplete:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+---
+- runFlow: ../subflows/login.yaml
+- runFlow:
+    file: ../subflows/reservar-norte.yaml
+    env:
+      HOUR: "13:00"
+      FORMA: cartao
+- tapOn:
+    id: "cartao-teste-aprova"
+- hideKeyboard
+- tapOn:
+    id: "cartao-pagar"
+- extendedWaitUntil:
+    visible:
+      id: "pagamento-confirmado"
+    timeout: 20000
+
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${SUPER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/simulator-charge.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}
+      PAYER_NAME: ${PLAYER_NAME}
+      STATUS: PAID
+      METHOD: CARD
+      ACTION: chargeback
+      WAIT_STATUS: CHARGEBACK
+
+# As telas abertas a partir daqui releem a cobrança.
+- tapOn:
+    id: "pagamento-ver-item"
+- tapOn:
+    id: "tab-perfil"
+- tapOn:
+    id: "perfil-meus-pagamentos"
+- tapOn:
+    id: "meus-pagamentos-item-${output.SIMULATED_CHARGE_ID}"
+- assertVisible:
+    id: "comprovante-status"
+    text: "Contestado no cartão"
+- assertVisible:
+    id: "comprovante-estornos"
+- assertVisible: "Contestação no cartão"
+
+- tapOn:
+    id: "comprovante-ver-item"
+- assertVisible:
+    id: "reserva-situacao-pagamento"
+    text: "Contestado no cartão"
+- assertVisible:
+    id: "reserva-contestado"
+- assertVisible: ".*voltou a constar como não paga.*"

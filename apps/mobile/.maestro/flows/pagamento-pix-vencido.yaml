@@ -1,0 +1,85 @@
+# Pix vencido no modo opcional (RF-ONPAY-03, RN-ONPAY-02): a reserva continua confirmada e o
+# jogador gera outro Pix. Arena E2E Norte ("No local ou online"): reserva com Pix, o Super vence a
+# cobrança pelo simulador (scripts/simulator-charge.js, ACTION=expire) e a tela do Pix, que consulta
+# a cada 5 s, mostra "Este Pix venceu" com "Gerar novo Pix". O novo código aparece, e o detalhe da
+# reserva mostra "Continuar pagamento" com a validade do Pix aberto.
+appId: ${APP_ID}
+env:
+  API_URL: http://10.0.2.2:3335
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_NAME: Jogador E2E
+  PLAYER_PASSWORD: senha-e2e-1234
+  SUPER_EMAIL: super.e2e@exemplo.com
+  OWNER_EMAIL: dono.norte.e2e@exemplo.com
+  SPACE_NAME: Arena E2E Norte
+  SPACE_SLUG: arena-e2e-norte
+onFlowStart:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+onFlowComplete:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+---
+- runFlow: ../subflows/login.yaml
+- runFlow:
+    file: ../subflows/reservar-norte.yaml
+    env:
+      HOUR: "09:00"
+      FORMA: pix
+
+# Pix aberto no modo opcional: só a validade (sem a contagem do hold).
+- assertVisible:
+    id: "pix-copia-e-cola"
+- assertVisible:
+    id: "pix-validade"
+    text: "Pix válido até .*"
+- assertNotVisible:
+    id: "pix-contagem"
+
+# O Super vence o Pix pelo simulador.
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${SUPER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/simulator-charge.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}
+      PAYER_NAME: ${PLAYER_NAME}
+      STATUS: PENDING
+      METHOD: PIX
+      ACTION: expire
+      WAIT_STATUS: EXPIRED
+
+- extendedWaitUntil:
+    visible:
+      id: "pagamento-pix-vencido"
+    timeout: 30000
+- assertVisible: "Este Pix venceu"
+- assertVisible: "Sua reserva continua confirmada. Gere outro Pix ou pague no espaço."
+- assertVisible:
+    id: "pagamento-titulo"
+    text: "Pagamento"
+
+# Gerar novo Pix: outro código, de novo com a validade.
+- tapOn:
+    id: "pagamento-gerar-pix"
+- extendedWaitUntil:
+    visible:
+      id: "pix-copia-e-cola"
+    timeout: 20000
+- assertVisible:
+    id: "pix-validade"
+
+# No detalhe, a reserva segue confirmada e o pagamento pendente oferece continuar o Pix aberto.
+- back
+- assertVisible:
+    id: "reserva-situacao-pagamento"
+    text: "Pagamento pendente"
+- scrollUntilVisible:
+    element:
+      id: "reserva-pagar-online"
+    direction: DOWN
+- assertVisible:
+    id: "reserva-pagar-online-botao"
+    text: "Continuar pagamento"
+- assertVisible: "Pix gerado · vale até .*"

@@ -1,0 +1,130 @@
+# Fluxo do jogador: login → busca de espaço → reserva (pagamento no local) → Minhas reservas →
+# edição (pessoas e duração) → cancelamento dentro do prazo.
+# Cobre RF-AUTH, RF-BOOK-01, RN-BOOK-01 (R$ 100/h), RN-BOOK-07 (nasce confirmada) e
+# RF-BOOK-03 / RN-BOOK-05 (cancelar até cancellation_deadline_min antes; aqui a reserva é amanhã,
+# com 60 min de prazo) e RF-BOOK-03 / RN-BOOK-11/12 (editar a reserva). Usa o espaço fictício "Arena E2E" do seed de teste (apps/api/test/e2e-seed).
+# Os elementos são localizados por `id:` (testID do app); texto só onde não há testID possível
+# (botões do alerta nativo de cancelamento) ou para conferir o conteúdo exibido.
+appId: ${APP_ID}
+env:
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_PASSWORD: senha-e2e-1234
+  SPACE_NAME: Arena E2E
+  SPACE_SLUG: arena-e2e
+---
+- runFlow: ../subflows/login.yaml
+- runScript: ../scripts/tomorrow-date.js
+
+# Busca de espaço pelo nome.
+- tapOn:
+    id: "busca-espaco-input"
+- inputText: ${SPACE_NAME}
+- hideKeyboard
+- assertVisible:
+    id: "espaco-card-${SPACE_SLUG}"
+- tapOn:
+    id: "espaco-card-${SPACE_SLUG}"
+
+# Espaço: aba de aluguel com o preço do seed (R$ 100/h) e o prazo de cancelamento.
+- assertVisible:
+    id: "espaco-titulo"
+    text: ${SPACE_NAME}
+- assertVisible:
+    id: "espaco-preco-hora"
+    text: "R$ 100,00"
+- tapOn:
+    id: "espaco-reservar"
+
+# Reserva: amanhã (24h aberto, sem depender da hora do teste), 1h, às 10:00.
+- assertVisible:
+    id: "reservar-titulo"
+    text: "Reservar · ${SPACE_NAME}"
+- tapOn:
+    id: "reservar-data-${output.TOMORROW_DATE}"
+- tapOn:
+    id: "reservar-horario-10:00"
+- tapOn:
+    id: "reservar-quadra-quadra-a"
+- tapOn:
+    id: "reservar-pagamento-CASH"
+- assertVisible:
+    id: "reservar-resumo"
+# RN-BOOK-01: 1h × R$ 100/h.
+- assertVisible:
+    id: "reservar-total"
+    text: "R$ 100,00"
+- tapOn:
+    id: "reservar-confirmar"
+
+# RN-BOOK-07: confirmada na hora; pagamento é no espaço (sem gateway).
+- assertVisible:
+    id: "reserva-confirmada"
+- assertVisible:
+    id: "reserva-situacao-pagamento"
+    text: "Pagar no espaço"
+
+# Minhas reservas (aba Agenda → Próximas).
+- tapOn:
+    id: "tab-agenda"
+- tapOn:
+    id: "agenda-aba-upcoming"
+- assertVisible:
+    id: "reserva-card-${SPACE_SLUG}"
+- tapOn:
+    id: "reserva-card-${SPACE_SLUG}"
+
+# Editar pelo sheet (RN-BOOK-11/12/13): sem pagamento registrado, muda pessoas e duração; o preço
+# recalcula pelo valor/hora guardado na reserva e o resumo mostra a diferença antes de confirmar.
+- assertVisible:
+    id: "reserva-titulo"
+- tapOn:
+    id: "reserva-editar"
+- tapOn:
+    id: "editar-pessoas-mais"
+- tapOn:
+    id: "editar-duracao-90"
+# O espaço abre 24h: a grade de horários empurra o resumo para baixo no sheet.
+- scrollUntilVisible:
+    element:
+      id: "editar-confirmar"
+    direction: DOWN
+- assertVisible:
+    id: "editar-total"
+    text: "R$ 150,00"
+# `text:` é regex no Maestro: o "+" e o "$" do valor não podem ir literais.
+- assertVisible:
+    id: "editar-diferenca"
+    text: ".*50,00"
+- tapOn:
+    id: "editar-confirmar"
+- assertVisible:
+    id: "reserva-total"
+    text: "R$ 150,00"
+
+# Cancelar dentro do prazo (RN-BOOK-05): o botão está habilitado e o aviso de prazo vencido não aparece.
+- assertVisible:
+    id: "reserva-titulo"
+- assertNotVisible:
+    id: "reserva-prazo-vencido"
+# Com mais de uma pessoa, o formulário de convite empurra o botão para baixo.
+- scrollUntilVisible:
+    element:
+      id: "reserva-cancelar"
+    direction: DOWN
+- tapOn:
+    id: "reserva-cancelar"
+# Alerta nativo (Alert.alert): sem testID, os botões só existem por texto. O índice 1 pula o botão
+# "Cancelar reserva" da própria tela, que continua na hierarquia por baixo do alerta.
+- assertVisible: "Cancelar reserva?"
+- tapOn:
+    text: "Cancelar reserva"
+    index: 1
+- assertVisible:
+    id: "reserva-cancelada"
+
+# Sai das Próximas e confere as Passadas (canceladas ficam no histórico).
+- back
+- tapOn:
+    id: "agenda-aba-past"
+- assertVisible:
+    id: "reserva-card-${SPACE_SLUG}"

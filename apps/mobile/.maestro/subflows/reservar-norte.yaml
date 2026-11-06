@@ -1,0 +1,41 @@
+# Reserva amanhã na Arena E2E Norte (Quadra Norte, 1h) até a etapa "Como você quer pagar?", escolhe
+# a forma e toca no botão principal (RF-BOOK-01, RF-ONPAY-03). Usado pelos fluxos de pagamento.
+# Env: SPACE_NAME, SPACE_SLUG, HOUR (`HH:MM`, cada fluxo usa um horário próprio) e FORMA
+# (`pix`, `cartao` ou `local`). Com `cartao`, para na etapa do cartão (a reserva só nasce com o
+# token); com `pix`, cai na tela do Pix.
+appId: ${APP_ID}
+---
+- runScript: ../scripts/tomorrow-date.js
+- tapOn:
+    id: "tab-explorar"
+- tapOn:
+    id: "busca-espaco-input"
+- eraseText
+- inputText: ${SPACE_NAME}
+- hideKeyboard
+- tapOn:
+    id: "espaco-card-${SPACE_SLUG}"
+- tapOn:
+    id: "espaco-reservar"
+- tapOn:
+    id: "reservar-data-${output.TOMORROW_DATE}"
+- scrollUntilVisible:
+    element:
+      id: "reservar-horario-${HOUR}"
+    direction: DOWN
+- tapOn:
+    id: "reservar-horario-${HOUR}"
+- tapOn:
+    id: "reservar-quadra-quadra-norte"
+- scrollUntilVisible:
+    element:
+      id: "reservar-forma-${FORMA}"
+    direction: DOWN
+- tapOn:
+    id: "reservar-forma-${FORMA}"
+- scrollUntilVisible:
+    element:
+      id: "reservar-confirmar"
+    direction: DOWN
+- tapOn:
+    id: "reservar-confirmar"

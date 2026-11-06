@@ -1,0 +1,93 @@
+# Avaliar a partir da reserva passada (RF-REVIEW-01/02; docs/05, "Avaliações (3) e (4)"):
+# card "Avalie sua experiência" no detalhe da reserva, nota gravada com um toque (só criar), tela de
+# avaliar já em edição com "Nota salva", chip positivo, comentário, "Salvar alterações", sucesso,
+# "Ver no espaço" com o bloco e o botão "Editar minha avaliação", e o card que vira "Sua avaliação".
+# Usa a reserva passada do jogador na Arena E2E (seed de teste). Apaga a avaliação no começo e no fim
+# (scripts/delete-my-review.js), então pode ser repetido sem re-semear.
+appId: ${APP_ID}
+env:
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_PASSWORD: senha-e2e-1234
+  SPACE_SLUG: arena-e2e
+  API_URL: http://10.0.2.2:3335
+onFlowStart:
+  - runFlow: ../subflows/limpar-avaliacao.yaml
+onFlowComplete:
+  - runFlow: ../subflows/limpar-avaliacao.yaml
+---
+- runFlow: ../subflows/login.yaml
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${PLAYER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript: ../scripts/past-booking.js
+- openLink: spacesports://reserva/${output.PAST_BOOKING_ID}
+
+# Card do convite: um toque na 4ª estrela grava a nota e abre a tela de avaliar.
+- scrollUntilVisible:
+    element:
+      id: "reserva-avaliacao"
+- tapOn:
+    id: "reserva-avaliacao-estrela-4"
+- assertVisible:
+    id: "avaliar-nota-salva"
+- assertVisible:
+    id: "avaliar-rotulo-nota"
+    text: "Bom"
+
+# Nota 4: chips positivos; o negativo do mesmo assunto não aparece.
+- tapOn:
+    id: "avaliar-chip-GOOD_COURT"
+- assertNotVisible:
+    id: "avaliar-chip-BAD_COURT"
+- tapOn:
+    id: "avaliar-comentario"
+- inputText: "Quadra boa e atendimento rapido."
+- hideKeyboard
+# Contador pelo testID e pelo rótulo falado (no iOS o accessibilityLabel substitui o texto "32/500";
+# o rótulo atualiza 0,8 s depois da digitação).
+- assertVisible:
+    id: "avaliar-contador"
+    text: "32 de 500 caracteres"
+- tapOn:
+    id: "avaliar-enviar"
+- assertVisible:
+    id: "avaliar-sucesso"
+- assertVisible: "Avaliação atualizada"
+
+# Ver no espaço: bloco de avaliações com o botão de editar.
+- tapOn:
+    id: "avaliar-ver-no-espaco"
+- scrollUntilVisible:
+    element:
+      id: "espaco-avaliar"
+- assertVisible:
+    id: "espaco-avaliar"
+    text: "Editar minha avaliação"
+
+# De volta à reserva: o card agora é "Sua avaliação", com editar, sem as estrelas de um toque.
+- openLink: spacesports://reserva/${output.PAST_BOOKING_ID}
+- scrollUntilVisible:
+    element:
+      id: "reserva-avaliacao-editar"
+- assertNotVisible:
+    id: "reserva-avaliacao-estrela-1"
+
+# Excluir pela tela de avaliar (alerta nativo, sem testID). O botão de confirmar é o positivo do
+# AlertDialog do Android (`android:id/button1`, o último do Alert.alert); o texto junto evita tocar em
+# outro "Excluir…" da tela que continua na hierarquia por baixo do alerta.
+- tapOn:
+    id: "reserva-avaliacao-editar"
+- scrollUntilVisible:
+    element:
+      id: "avaliar-excluir"
+- tapOn:
+    id: "avaliar-excluir"
+- assertVisible: "Excluir sua avaliação\\?"
+- tapOn:
+    id: "android:id/button1"
+    text: "Excluir"
+- scrollUntilVisible:
+    element:
+      id: "reserva-avaliacao-estrela-1"

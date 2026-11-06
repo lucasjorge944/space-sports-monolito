@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "builder": "tsc",
+    "tsConfigPath": "tsconfig.build.json",
+    "deleteOutDir": true,
+    "assets": ["db/demo-assets/*.jpg", "db/demo-assets/ads/*.jpg"]
+  }
+}

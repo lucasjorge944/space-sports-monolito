@@ -1,0 +1,115 @@
+# Cadastro em duas etapas com telefone obrigatório (RF-AUTH-01, decisões 64 e 70) → "Sobre você"
+# preenchido (nascimento, gênero, esporte com nível; decisões 68 e 69) → Perfil →
+# Editar perfil mostra os dados e salva a troca de nome; Alterar senha (RF-AUTH-02, decisão 67).
+# A foto (câmera/galeria do sistema) fica nos testes de componente: o seletor é nativo.
+appId: ${APP_ID}
+env:
+  SIGNUP_NAME: Bia Cadastro
+  SIGNUP_PASSWORD: senha-e2e-1234
+  SPORT_SLUG: futevolei
+---
+- runFlow: ../subflows/cadastro-conta.yaml
+
+# Data inválida (futura) é recusada no campo. O botão fica abaixo dos esportes: rola até ele antes
+# de tocar (em telas pequenas ele não está visível sem rolar).
+- tapOn:
+    id: "perfil-nascimento"
+- inputText: "01012999"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "sobre-voce-salvar"
+    direction: DOWN
+- tapOn:
+    id: "sobre-voce-salvar"
+- assertVisible: "A data não pode ser no futuro"
+- scrollUntilVisible:
+    element:
+      id: "perfil-nascimento"
+    direction: UP
+- tapOn:
+    id: "perfil-nascimento"
+- eraseText: 10
+- inputText: "01021990"
+- assertVisible:
+    id: "perfil-nascimento"
+    text: "01/02/1990"
+- hideKeyboard
+- tapOn:
+    id: "perfil-genero-FEMALE"
+- scrollUntilVisible:
+    element:
+      id: "perfil-esporte-${SPORT_SLUG}"
+    direction: DOWN
+- tapOn:
+    id: "perfil-esporte-${SPORT_SLUG}"
+- scrollUntilVisible:
+    element:
+      id: "perfil-nivel-${SPORT_SLUG}-INTERMEDIATE"
+    direction: DOWN
+- tapOn:
+    id: "perfil-nivel-${SPORT_SLUG}-INTERMEDIATE"
+- scrollUntilVisible:
+    element:
+      id: "sobre-voce-salvar"
+    direction: DOWN
+- tapOn:
+    id: "sobre-voce-salvar"
+
+- runFlow: ../subflows/depois-do-cadastro.yaml
+
+# Perfil com o nome do cadastro (sem foto, as iniciais, que ficam fora da árvore de acessibilidade).
+- tapOn:
+    id: "tab-perfil"
+- assertVisible:
+    id: "perfil-nome"
+    text: ${SIGNUP_NAME}
+- tapOn:
+    id: "perfil-editar"
+
+# Editar perfil traz o que foi salvo; e-mail só leitura, ainda não verificado.
+- assertVisible:
+    id: "editar-perfil-telefone"
+    text: "(31) 99999-8888"
+- assertVisible:
+    id: "perfil-nascimento"
+    text: "01/02/1990"
+- assertVisible:
+    id: "editar-perfil-email-status"
+- assertVisible: "Não verificado"
+- assertVisible:
+    id: "editar-perfil-reenviar"
+- tapOn:
+    id: "editar-perfil-nome"
+- eraseText: 20
+- inputText: "Bia Editada"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "editar-perfil-salvar"
+    direction: DOWN
+- tapOn:
+    id: "editar-perfil-salvar"
+- assertVisible:
+    id: "perfil-nome"
+    text: "Bia Editada"
+
+# Alterar senha (decisão 67): senha atual, nova e confirmação; encerra as outras sessões.
+- tapOn:
+    id: "perfil-alterar-senha"
+- assertVisible:
+    id: "alterar-senha-titulo"
+- tapOn:
+    id: "alterar-senha-atual"
+- inputText: ${SIGNUP_PASSWORD}
+- tapOn:
+    id: "alterar-senha-nova"
+- inputText: "senha-nova-5678"
+- tapOn:
+    id: "alterar-senha-confirmar"
+- inputText: "senha-nova-5678"
+- hideKeyboard
+- tapOn:
+    id: "alterar-senha-salvar"
+- assertVisible:
+    id: "alterar-senha-sucesso"

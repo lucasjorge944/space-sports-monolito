@@ -1,0 +1,34 @@
+# RF-AUTH: entra com e-mail e senha (usuário do seed de teste). Parte do app zerado.
+appId: ${APP_ID}
+---
+- clearState
+- launchApp:
+    clearState: true
+# Primeiro acesso: onboarding da permissão de localização (a busca funciona sem ela).
+- runFlow:
+    when:
+      visible:
+        id: "localizacao-agora-nao"
+    commands:
+      - tapOn:
+          id: "localizacao-agora-nao"
+# Sem sessão, o app cai na tela de entrada.
+- assertVisible:
+    id: "login-titulo"
+# Logo vertical da marca nas telas de auth (acessível como "Space Sports").
+- assertVisible:
+    id: "auth-logo"
+- tapOn:
+    id: "login-email"
+- inputText: ${PLAYER_EMAIL}
+- tapOn:
+    id: "login-senha"
+- inputText: ${PLAYER_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-entrar"
+# Logo horizontal e sino no cabeçalho fixo das abas.
+- assertVisible:
+    id: "explorar-logo"
+- assertVisible:
+    id: "notificacoes-sino"

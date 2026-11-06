@@ -1,0 +1,116 @@
+# Reserva no modo "Online obrigatório" que vence sem pagamento (RF-ONPAY-03/04, RN-ONPAY-02).
+# Liga o modo obrigatório na Arena E2E Norte (Dono, por script), reserva com Pix e confere: aviso
+# dos 15 min, contagem "Pague em mm:ss" e "Horário guardado até", a reserva "Aguardando
+# pagamento" no topo da Agenda com "Pague até" e, no detalhe, "Falta pagar para confirmar" e
+# "Pagar" voltando ao mesmo Pix. Depois espera o prazo de verdade (até 15 min: o job vence o hold a
+# cada minuto e a leitura também) e confere "O prazo para pagar acabou" e a reserva cancelada com
+# "Pagamento não feito no prazo". No fim, volta o modo para "No local ou online".
+# Precisa da API com PAYMENTS_PROVIDER=fake e JOBS_ENABLED=true. Fluxo longo (~16 min).
+appId: ${APP_ID}
+env:
+  API_URL: http://10.0.2.2:3335
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_PASSWORD: senha-e2e-1234
+  OWNER_EMAIL: dono.norte.e2e@exemplo.com
+  SPACE_NAME: Arena E2E Norte
+  SPACE_SLUG: arena-e2e-norte
+# O modo do espaço volta para "No local ou online" mesmo se o fluxo falhar no meio: sem isto, um
+# erro aqui deixaria o espaço em "Online obrigatório" e derrubaria o pagamento-pix.yaml, que roda
+# depois (ordem alfabética), com uma falha enganosa.
+onFlowComplete:
+  - runScript:
+      file: ../scripts/payments-login.js
+      env:
+        LOGIN_EMAIL: ${OWNER_EMAIL}
+        LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+  - runScript:
+      file: ../scripts/set-booking-mode.js
+      env:
+        API_TOKEN: ${output.API_TOKEN}
+        BOOKING_MODE: ONLINE_OPTIONAL
+---
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${OWNER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/set-booking-mode.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}
+      BOOKING_MODE: ONLINE_REQUIRED
+
+- runFlow: ../subflows/login.yaml
+- runScript: ../scripts/tomorrow-date.js
+- tapOn:
+    id: "busca-espaco-input"
+- inputText: ${SPACE_NAME}
+- hideKeyboard
+- tapOn:
+    id: "espaco-card-${SPACE_SLUG}"
+- tapOn:
+    id: "espaco-reservar"
+- tapOn:
+    id: "reservar-data-${output.TOMORROW_DATE}"
+- tapOn:
+    id: "reservar-horario-16:00"
+- tapOn:
+    id: "reservar-quadra-quadra-norte"
+
+# Obrigatório: sem "No local", com o aviso do horário guardado por 15 min.
+- scrollUntilVisible:
+    element:
+      id: "reservar-pagamento-obrigatorio"
+    direction: DOWN
+- assertNotVisible:
+    id: "reservar-forma-local"
+- assertVisible:
+    id: "reservar-confirmar"
+    text: "Reservar e pagar com Pix"
+- tapOn:
+    id: "reservar-confirmar"
+
+# Pix com a contagem e a hora do prazo.
+- assertVisible:
+    id: "pix-contagem"
+    text: "Pague em .*"
+- assertVisible: "Horário guardado até .*"
+
+# Sair não cancela nada: a reserva fica "Aguardando pagamento" no topo da Agenda.
+- back
+- assertVisible:
+    id: "reserva-aguardando-pagamento"
+- assertVisible:
+    id: "reserva-prazo-contagem"
+    text: "Faltam .*"
+- assertNotVisible:
+    id: "reserva-editar"
+- tapOn:
+    id: "tab-agenda"
+- tapOn:
+    id: "agenda-aba-upcoming"
+- assertVisible:
+    id: "agenda-aguardando-pagamento"
+- assertVisible: "Pague até .*"
+- tapOn:
+    id: "reserva-card-.*-pagar"
+# Com o Pix aberto e no prazo, volta o mesmo código (nada de gerar outro).
+- assertVisible:
+    id: "pix-copia-e-cola"
+
+# O prazo vence (até 15 min; a tela consulta a cada 5 s e confere antes de dizer que venceu).
+- extendedWaitUntil:
+    visible:
+      id: "pagamento-prazo-acabou"
+    timeout: 1020000
+- assertVisible: "O prazo para pagar acabou"
+- assertVisible:
+    id: "pagamento-reservar-de-novo"
+
+# Na Agenda, a reserva vai para as passadas, cancelada por falta de pagamento.
+- back
+- tapOn:
+    id: "tab-agenda"
+- tapOn:
+    id: "agenda-aba-past"
+- assertVisible: "Pagamento não feito no prazo"

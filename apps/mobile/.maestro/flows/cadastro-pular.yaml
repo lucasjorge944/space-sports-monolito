@@ -1,0 +1,21 @@
+# Cadastro com "Pular" na etapa "Sobre você" (decisão 70): a conta segue para o app sem nascimento,
+# gênero nem esportes, e nada volta a ser cobrado. RF-AUTH-01.
+appId: ${APP_ID}
+env:
+  SIGNUP_NAME: Caio Pulou
+  SIGNUP_PASSWORD: senha-e2e-1234
+---
+- runFlow: ../subflows/cadastro-conta.yaml
+- tapOn:
+    id: "sobre-voce-pular"
+- runFlow: ../subflows/depois-do-cadastro.yaml
+- tapOn:
+    id: "tab-perfil"
+- assertVisible:
+    id: "perfil-nome"
+    text: ${SIGNUP_NAME}
+# Nada é cobrado depois: o app segue normal, e o Explorar abre.
+- tapOn:
+    id: "tab-explorar"
+- assertVisible:
+    id: "explorar-logo"

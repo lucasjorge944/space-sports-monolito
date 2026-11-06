@@ -1,0 +1,5 @@
+# Maestro do app do jogador. Rode da pasta apps/mobile (veja .maestro/README.md):
+#   maestro test -e APP_ID=<id do build> .maestro/flows
+# Só `flows/` roda como suíte; `subflows/` são pedaços reutilizados com runFlow.
+flows:
+  - flows/*

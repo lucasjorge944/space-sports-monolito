@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "environment": "preview",
+      "distribution": "internal",
+      "channel": "preview",
+      "node": "22.23.4",
+      "pnpm": "12.15.0",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api-staging.spacesports.com.br"
+      }
+    },
+    "production": {
+      "environment": "production",
+      "autoIncrement": true,
+      "channel": "production",
+      "node": "22.23.4",
+      "pnpm": "12.15.0",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.spacesports.com.br"
+      }
+    }
+  }
+}

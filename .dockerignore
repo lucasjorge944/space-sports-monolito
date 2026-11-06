@@ -1,0 +1,33 @@
+# Contexto do build de apps/api/Dockerfile e apps/web/Dockerfile: a raiz do monorepo.
+
+# Segredos: nunca entram no contexto, nem o .env.example (as imagens não usam).
+**/.env
+**/.env.*
+**/*.env
+**/*.pem
+**/*.key
+
+# Dependências e saídas de build: refeitas dentro da imagem, para a plataforma dela.
+**/node_modules
+**/dist
+**/.next
+**/.next-*
+**/.turbo
+**/cdk.out
+**/.expo
+**/coverage
+**/playwright-report
+**/test-results
+**/*.tsbuildinfo
+**/*.log
+
+# Fora das imagens.
+.git
+.github
+.claude
+.husky
+docs
+scripts
+apps/mobile
+infra
+*.md

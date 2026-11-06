@@ -1,0 +1,35 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@space-sports/ui-tokens/generated/theme.css";
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground;
+  }
+
+  /* Títulos em Space Grotesk; o resto da interface fica em Inter. */
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+  }
+}
+
+/* Modo suporte: a faixa fica no fluxo, acima do app; a sidebar fixa desce a altura dela. */
+:root {
+  --support-banner-h: 0px;
+}
+
+[data-slot="sidebar-container"] {
+  top: var(--support-banner-h);
+  height: calc(100svh - var(--support-banner-h));
+}

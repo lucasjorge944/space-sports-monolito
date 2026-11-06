@@ -1,0 +1,21 @@
+# HTTPS automático (Let's Encrypt). O DNS precisa apontar para o servidor, e as portas 80 e 443
+# precisam estar abertas. Os certificados ficam no volume caddy-data.
+{
+	servers {
+		# O security group só libera TCP: sem HTTP/3, que usa UDP na 443.
+		protocols h1 h2
+	}
+}
+
+staging.spacesports.com.br {
+	encode zstd gzip
+	# Os dados do staging são fictícios: não podem aparecer em buscadores.
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy web:3000
+}
+
+api-staging.spacesports.com.br {
+	encode zstd gzip
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy api:3333
+}

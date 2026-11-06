@@ -1,0 +1,118 @@
+# Reserva com pagamento online por Pix, pago pelo simulador (RF-ONPAY-03, RF-ONPAY-06, RN-ONPAY-02).
+# Arena E2E Norte (seed): cadastro aprovado no gateway fake e reservas no modo "No local ou online".
+# Etapa "Como você quer pagar?" com o Pix marcado e o selo de teste → tela do Pix (código, QR,
+# "Pix válido até") → o Super paga pelo simulador (script) → a tela atualiza sozinha (consulta a
+# cada 5 s) para "Pagamento confirmado" → comprovante em Meus pagamentos → cancela a reserva no
+# prazo (o valor volta para o Pix).
+# Precisa da API com PAYMENTS_PROVIDER=fake e JOBS_ENABLED=true (a fila entrega o webhook do fake).
+appId: ${APP_ID}
+env:
+  API_URL: http://10.0.2.2:3335
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_NAME: Jogador E2E
+  PLAYER_PASSWORD: senha-e2e-1234
+  SUPER_EMAIL: super.e2e@exemplo.com
+  SPACE_NAME: Arena E2E Norte
+  SPACE_SLUG: arena-e2e-norte
+---
+- runFlow: ../subflows/login.yaml
+- runScript: ../scripts/tomorrow-date.js
+
+- tapOn:
+    id: "busca-espaco-input"
+- inputText: ${SPACE_NAME}
+- hideKeyboard
+- tapOn:
+    id: "espaco-card-${SPACE_SLUG}"
+- tapOn:
+    id: "espaco-reservar"
+
+# Amanhã às 14:00 na Quadra Norte (o espaço abre 24h).
+- tapOn:
+    id: "reservar-data-${output.TOMORROW_DATE}"
+- tapOn:
+    id: "reservar-horario-14:00"
+- tapOn:
+    id: "reservar-quadra-quadra-norte"
+
+# Etapa de pagamento: Pix primeiro e já marcado; "No local" por último; selo do ambiente de teste.
+- scrollUntilVisible:
+    element:
+      id: "reservar-forma-pix"
+    direction: DOWN
+- assertVisible:
+    id: "pagamento-selo-teste"
+- assertVisible:
+    id: "reservar-forma-cartao"
+- assertVisible:
+    id: "reservar-forma-local"
+- assertVisible: "Sem taxa extra no app."
+- assertVisible:
+    id: "reservar-confirmar"
+    text: "Pagar com Pix"
+- tapOn:
+    id: "reservar-confirmar"
+
+# Tela do Pix: valor, código copia e cola, QR e "Pix válido até" (reserva já confirmada).
+- assertVisible:
+    id: "pagamento-titulo"
+    text: "Pagar com Pix"
+- assertVisible:
+    id: "pagamento-valor"
+    text: "R$ 100,00"
+- assertVisible:
+    id: "pix-copia-e-cola"
+- assertVisible:
+    id: "pix-validade"
+- tapOn:
+    id: "pix-copiar"
+- assertVisible: "Copiado!"
+- assertVisible: "Prefere pagar no espaço? Pode sair: sua reserva já está confirmada."
+
+# O Super paga o Pix pelo simulador; a tela confirma sozinha.
+- runScript:
+    file: ../scripts/payments-login.js
+    env:
+      LOGIN_EMAIL: ${SUPER_EMAIL}
+      LOGIN_PASSWORD: ${PLAYER_PASSWORD}
+- runScript:
+    file: ../scripts/simulator-pay-pix.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}
+      PAYER_NAME: ${PLAYER_NAME}
+- extendedWaitUntil:
+    visible:
+      id: "pagamento-confirmado"
+    timeout: 30000
+- assertVisible: "Pagamento confirmado"
+
+# Comprovante (Meus pagamentos): pago, com o selo de teste.
+- tapOn:
+    id: "pagamento-ver-comprovante"
+- assertVisible:
+    id: "comprovante-status"
+    text: "Pago"
+- assertVisible:
+    id: "comprovante-teste"
+- back
+
+# Detalhe: pago com Pix; cancelar no prazo avisa que o valor volta para o Pix.
+- tapOn:
+    id: "pagamento-ver-item"
+- assertVisible:
+    id: "reserva-situacao-pagamento"
+    text: "Pago"
+- assertVisible:
+    id: "reserva-pago-online"
+- scrollUntilVisible:
+    element:
+      id: "reserva-cancelar"
+    direction: DOWN
+- tapOn:
+    id: "reserva-cancelar"
+- assertVisible: ".*voltam para o seu Pix.*"
+- tapOn:
+    text: "Cancelar reserva"
+    index: 1
+- assertVisible:
+    id: "reserva-cancelada"

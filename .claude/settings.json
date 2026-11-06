@@ -1,0 +1,10 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "/bin/sh \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/scripts/orchestration/statusline.sh\""
+  },
+  "enabledMcpjsonServers": ["context7"],
+  "permissions": {
+    "allow": ["mcp__context7"]
+  }
+}

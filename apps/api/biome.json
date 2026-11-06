@@ -1,0 +1,14 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
+  "root": false,
+  "extends": "//",
+  "javascript": {
+    "parser": { "unsafeParameterDecoratorsEnabled": true }
+  },
+  "linter": {
+    "rules": {
+      "complexity": { "noStaticOnlyClass": "off" },
+      "style": { "useImportType": "off" }
+    }
+  }
+}

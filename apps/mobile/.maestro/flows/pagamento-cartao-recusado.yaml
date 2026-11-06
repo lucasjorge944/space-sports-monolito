@@ -1,0 +1,74 @@
+# Cartão recusado e nova tentativa na mesma reserva (RF-ONPAY-03, RN-ONPAY-02/10; decisão 96).
+# Arena E2E Norte (modo "No local ou online"): reserva com cartão usando o cartão de teste de
+# recusa que a API manda em paymentEnvironment.sandbox (nada fixo no app). O primeiro envio cria a
+# reserva junto com o token; recusado, o app já está em reserva → pagamento e mostra "Cartão
+# recusado" com o motivo da API e o formulário vazio. A nova tentativa, com o
+# cartão de teste que aprova, vai para a cobrança dessa reserva: "Pagamento aprovado". As
+# reservas do jogador no espaço são canceladas antes e depois (subflows/limpar-reservas-norte.yaml).
+appId: ${APP_ID}
+env:
+  API_URL: http://10.0.2.2:3335
+  PLAYER_EMAIL: jogador.e2e@exemplo.com
+  PLAYER_NAME: Jogador E2E
+  PLAYER_PASSWORD: senha-e2e-1234
+  SUPER_EMAIL: super.e2e@exemplo.com
+  OWNER_EMAIL: dono.norte.e2e@exemplo.com
+  SPACE_NAME: Arena E2E Norte
+  SPACE_SLUG: arena-e2e-norte
+onFlowStart:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+onFlowComplete:
+  - runFlow: ../subflows/limpar-reservas-norte.yaml
+---
+- runFlow: ../subflows/login.yaml
+- runFlow:
+    file: ../subflows/reservar-norte.yaml
+    env:
+      HOUR: "07:00"
+      FORMA: cartao
+
+- tapOn:
+    id: "cartao-teste-recusa"
+- hideKeyboard
+- tapOn:
+    id: "cartao-pagar"
+
+# Recusado: a reserva já existe (confirmada no modo opcional) e a tela é a do pagamento dela.
+- extendedWaitUntil:
+    visible:
+      id: "cartao-recusado"
+    timeout: 20000
+- assertVisible: "Cartão recusado"
+# O motivo vem da API (failureReason já em texto, no lugar da frase padrão da tela).
+- assertVisible: "O cartão foi recusado. Confira os dados ou use outro cartão."
+- assertVisible:
+    id: "pagamento-titulo"
+    text: "Pagar com cartão"
+# Depois do primeiro envio, a tela é a do pagamento da reserva (outro formulário, vazio): os
+# dados digitados na etapa do cartão não ficam guardados em lugar nenhum.
+- assertNotVisible:
+    id: "cartao-numero"
+    text: "4000 0000 0000 0002"
+
+# Nova tentativa, na mesma reserva, com o cartão que aprova.
+- tapOn:
+    id: "cartao-teste-aprova"
+- hideKeyboard
+- tapOn:
+    id: "cartao-pagar"
+- extendedWaitUntil:
+    visible:
+      id: "pagamento-confirmado"
+    timeout: 20000
+- assertVisible: "Pagamento aprovado"
+- assertVisible: ".*Cartão final 1111.*"
+
+# O detalhe da reserva mostra o pagamento online.
+- tapOn:
+    id: "pagamento-ver-item"
+- assertVisible:
+    id: "reserva-situacao-pagamento"
+    text: "Pago"
+- assertVisible:
+    id: "reserva-pago-online"
+- assertVisible: "Pago com cartão final 1111 em .*"
