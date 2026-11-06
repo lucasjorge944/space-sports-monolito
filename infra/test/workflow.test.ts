@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseYaml } from './helpers.js';
 
-const workflow = parseYaml('../.github/workflows/deploy-staging.yml');
+const workflow = parseYaml('github-workflows-desativados/deploy-staging.yml');
 const { instance, deploy } = workflow.jobs;
 const steps: { name?: string; uses?: string; with?: Record<string, string> }[] = deploy.steps;
 

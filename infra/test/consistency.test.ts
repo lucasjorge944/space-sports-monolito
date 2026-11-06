@@ -92,7 +92,7 @@ describe('valores repetidos fora do cdk.json', () => {
   });
 
   describe('deploy-staging.yml', () => {
-    const workflow = parseYaml('../.github/workflows/deploy-staging.yml');
+    const workflow = parseYaml('github-workflows-desativados/deploy-staging.yml');
 
     it('usa a região configurada', () => {
       expect(workflow.env.AWS_REGION).toBe(region);

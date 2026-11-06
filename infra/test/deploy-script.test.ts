@@ -277,7 +277,7 @@ esac`,
 });
 
 describe('passo que confere as imagens no workflow', () => {
-  const workflow = parseYaml('../.github/workflows/deploy-staging.yml');
+  const workflow = parseYaml('github-workflows-desativados/deploy-staging.yml');
   const step = workflow.jobs.deploy.steps.find((s: { id?: string }) => s.id === 'images');
 
   /** Roda o `run:` real, como o GitHub roda: `bash -e`. */
