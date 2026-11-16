@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { localDateSchema, oneOrMany } from './booking';
+import { localDateSchema, oneOrMany, periodDateSchema } from './booking';
 import { centsSchema } from './money';
 import { sportLevelSchema } from './profile';
 import { OCCUPATION_KINDS, startTimeSchema } from './recurring';
@@ -126,10 +126,10 @@ export type ClassGroupsQuery = z.infer<typeof classGroupsQuerySchema>;
 /** GET /v1/manage/spaces/:spaceId/class-sessions: por data local do espaço, `from` a `to` inclusive. */
 export const classSessionsQuerySchema = z
   .object({
-    /** Padrão: hoje. */
-    from: localDateSchema.optional(),
-    /** Padrão: `from` + 27 dias. Até 62 dias depois de `from`. */
-    to: localDateSchema.optional(),
+    /** De 2000-01-01 a 2100-12-31 (`periodDateSchema`). Padrão: hoje. */
+    from: periodDateSchema.optional(),
+    /** De 2000-01-01 a 2100-12-31. Padrão: `from` + 27 dias. Até 62 dias depois de `from`. */
+    to: periodDateSchema.optional(),
     classGroupId: z.uuid().optional(),
     teacherMemberId: z.uuid().optional(),
     status: oneOrMany(classSessionStatusSchema),

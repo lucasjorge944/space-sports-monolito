@@ -1,6 +1,8 @@
 // Rotas de assinaturas, mensalidades e presença da API simulada (tarefa 2.12). Os dados são fixos:
 // as escritas só registram a chamada em `calls` e devolvem o detalhe, para os testes que rodam em
 // paralelo não interferirem uns nos outros. Cada cenário usa o próprio aluno.
+import { periodOutOfRange } from './mock-classes.mjs';
+
 const ID = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 const SPORT = { id: ID(301), name: 'Futevôlei', slug: 'futevolei' };
@@ -378,6 +380,9 @@ export async function handleAlunos({
     });
   }
 
+  if (method === 'GET' && periodOutOfRange(url)) {
+    return error(400, 'VALIDATION_ERROR', 'Use uma data entre 01/01/2000 e 31/12/2100.');
+  }
   if (method === 'GET' && sub === '/class-attendances') {
     const userId = url.searchParams.get('userId');
     const items = userId === ID(71) ? ATTENDANCES : [];

@@ -34,7 +34,8 @@ import {
   updateSuperSpaceSchema,
 } from '@space-sports/shared';
 import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser, SuperOnly } from '../auth/decorators.js';
+import { ApiAuth, CurrentUser, OAuthScopes, OAuthView, SuperOnly } from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { optionalBody, ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiUuidParam, ApiZodBody, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi.js';
@@ -57,6 +58,8 @@ export class SuperSpacesController {
   ) {}
 
   @Get()
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.superSpaceList)
   @ApiOperation({
     operationId: 'superListSpaces',
     summary: 'Listar, buscar e filtrar espaços (RF-SUPER-01)',
@@ -86,6 +89,8 @@ export class SuperSpacesController {
   }
 
   @Get(':spaceId')
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.superSpace)
   @ApiUuidParam('spaceId')
   @ApiOperation({
     operationId: 'superGetSpace',

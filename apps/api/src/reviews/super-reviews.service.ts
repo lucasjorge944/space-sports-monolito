@@ -28,6 +28,7 @@ import {
   cursorText,
   isPublicSummaryVisible,
   pageOf,
+  personalDataReported,
   ratingDistribution,
   tagHighlights,
   toReply,
@@ -140,8 +141,15 @@ function toReport(row: {
 export class SuperReviewsService {
   constructor(@Inject(DB) private readonly db: Database) {}
 
-  /** Fila: as abertas da mais antiga para a mais nova; os demais status, mais recentes primeiro. */
-  async reports(query: SuperReviewReportsQuery): Promise<SuperReviewReportPage> {
+  /**
+   * Fila: as abertas da mais antiga para a mais nova; os demais status, mais recentes primeiro.
+   * `withoutPersonalComments` (token do MCP, decisão 122): o comentário da avaliação oculta ou com
+   * denúncia de dado pessoal sai nulo (o painel do Super segue com o texto inteiro, para moderar).
+   */
+  async reports(
+    query: SuperReviewReportsQuery,
+    { withoutPersonalComments = false }: { withoutPersonalComments?: boolean } = {},
+  ): Promise<SuperReviewReportPage> {
     const direction = query.status === 'OPEN' ? 'asc' : 'desc';
     const order = direction === 'asc' ? asc : desc;
     const rows = await this.db
@@ -158,12 +166,19 @@ export class SuperReviewsService {
       .orderBy(order(spaceReviewReports.createdAt), order(spaceReviewReports.id))
       .limit(query.limit + 1);
     const page = pageOf(rows, query.limit, (row) => row.report.id, toReport);
-    const reviews = await this.reviewsByIds(page.items.map((item) => item.reviewId));
+    const reviewIds = page.items.map((item) => item.reviewId);
+    const [reviews, personal] = await Promise.all([
+      this.reviewsByIds(reviewIds),
+      withoutPersonalComments ? personalDataReported(this.db, reviewIds) : new Set<string>(),
+    ]);
     return {
       nextCursor: page.nextCursor,
       items: page.items.flatMap((item) => {
         const review = reviews.get(item.reviewId);
-        return review ? [{ ...item, review }] : [];
+        if (!review) return [];
+        const redact =
+          withoutPersonalComments && (review.hidden !== null || personal.has(review.id));
+        return [{ ...item, review: redact ? { ...review, comment: null } : review }];
       }),
     };
   }

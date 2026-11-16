@@ -6,10 +6,11 @@ Pendências encontradas na verificação do staging em 2026-11-02, para corrigir
 
 ### Alta
 - [ ] **Documentação da API pública.** `/docs` e `/docs-json` respondem sem login em `api-staging` e mostram todas as rotas (`apps/api/src/app.setup.ts`). Desligar em `production`, sem quebrar o export do OpenAPI usado pelo `api-client`.
-- [ ] **Cabeçalhos de segurança ausentes.** Não há HSTS, CSP, `X-Frame-Options` nem `X-Content-Type-Options` na API e no web. Adicionar no Caddy (`infra/staging/Caddyfile`) e no Next, e remover o `x-powered-by`.
+- [ ] **Cabeçalhos de segurança ausentes.** Não há HSTS, CSP completa nem `X-Content-Type-Options` na API e no web (o web já manda `Content-Security-Policy: frame-ancestors 'none'` e `X-Frame-Options: DENY` no site todo, desde a MCP.3, por causa do consentimento do MCP; teste em `apps/web/e2e/mcp.spec.ts`). Falta adicionar o resto no Caddy (`infra/staging/Caddyfile`) e no Next, os dois cabeçalhos de enquadramento também na API, e remover o `x-powered-by`.
 - [ ] **`multer` 2.4.0 na API.** Falha de negação de serviço, vinda de `@nestjs/platform-express`. Atualizar para 2.5.0 ou superior.
 
 ### Média
+- [ ] **Cadastro completo só no web (MCP.3, decisão 66).** O fluxo OAuth do MCP exige nome e telefone antes do consentimento, mas a API não confere: `POST /v1/bookings` (e o resto da lista do MCP) aceita conta com `profile.missing` não vazio, e um token obtido por fora do fluxo do web não passa pela checagem. Para valer na API, um erro como `PROFILE_INCOMPLETE` (422) na reserva e na confirmação de presença, e no authorize do plugin (contrato do `api-engineer`).
 - [ ] **Pré-sequestro pelo link de verificação de e-mail** (achado na revisão da C.2, 2026-11-03). Alguém cadastra com senha o e-mail de outra pessoa; se a dona clicar no link "Confirme seu e-mail", a senha de quem cadastrou continua valendo, e os contatos daquele e-mail passam a ser vinculados a essa conta (RF-CONTACT-04). A RN-AUTH-06 fecha o mesmo caso no login com Google, mas não neste caminho. Correção provável: ao verificar o e-mail de uma conta cuja senha foi criada antes da verificação, pedir a redefinição de senha ou revogar a senha e as sessões, como no Google.
 - [ ] **Rastro de auditoria na AWS.** Não há CloudTrail nem GuardDuty em `sa-east-1`. Criar um trail na organização e avaliar o custo do GuardDuty.
 - [ ] **Dependências do app.** `node-forge` 1.4.0 e `zod` 3.25.76 têm alertas altos, vindos de `expo-notifications`. Conferir se chegam ao app e atualizar o Expo.

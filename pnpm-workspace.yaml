@@ -3,6 +3,14 @@ packages:
   - packages/*
   - infra
 
+# Uma única versão do React no workspace: o api-client é compartilhado por web e mobile e o
+# @tanstack/react-query dele resolve o React por peer. Versões diferentes causam "Invalid hook call".
+# Mantida na versão que o Expo SDK 58 / React Native 0.88 exige.
+overrides:
+  react: 19.3.0
+  react-dom: 19.3.0
+  react-test-renderer: 19.3.0
+
 allowBuilds:
   "@parcel/watcher": false
   "@swc/core": true

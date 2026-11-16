@@ -212,7 +212,7 @@ test.describe('convite com conta (RF-CONTACT-03)', () => {
     await page.getByLabel('Senha', { exact: true }).fill('senha-1234');
     await page.getByLabel('Confirmar senha').fill('senha-1234');
     await page.getByRole('button', { name: 'Criar conta' }).click();
-    await page.getByRole('button', { name: 'Pular' }).click();
+    await page.getByRole('link', { name: 'Pular' }).click();
 
     await expect(page).toHaveURL(/verificar-email/);
     const signUp = (await mockCalls(request)).find((c) => c.path === '/sign-up/email');

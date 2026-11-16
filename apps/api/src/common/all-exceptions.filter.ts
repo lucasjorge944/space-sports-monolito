@@ -33,12 +33,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const { status, ...error } = resolve(exception);
     const retryAfter = retryAfterOf(exception);
-    if (retryAfter) response.setHeader('X-Retry-After', String(retryAfter));
+    if (retryAfter) {
+      response.setHeader('X-Retry-After', String(retryAfter));
+      // O padrão HTTP (RFC 9110), que os clientes do MCP leem.
+      response.setHeader('Retry-After', String(retryAfter));
+    }
     // AppException é uma resposta deliberada: quem a lança decide o que logar.
     if (status >= 500 && !(exception instanceof AppException)) {
       this.logger.error({ err: exception, requestId: request.id }, error.message);
     }
 
+    // O código fica na resposta para quem audita o resultado (token do Super, decisão 123).
+    if (response.locals) response.locals.errorCode = error.code;
     const body: ErrorBody = {
       error,
       requestId: typeof request.id === 'string' ? request.id : null,

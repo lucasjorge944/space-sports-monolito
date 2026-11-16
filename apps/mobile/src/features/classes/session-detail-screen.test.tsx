@@ -31,6 +31,10 @@ jest.mock('@space-sports/api-client', () => ({
     withdrawOptions = options;
     return { mutate: mockWithdraw, isPending: false };
   },
+  // O card de avaliação aparece em aulas recentes (o resultado depende da data de hoje); aqui ele
+  // fica fora do escopo e é testado em features/reviews.
+  useGetReviewEligibility: () => ({ data: undefined, refetch: jest.fn() }),
+  useUpsertMyReview: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 
 const load = (extra: Parameters<typeof classSession>[0] = {}) => {

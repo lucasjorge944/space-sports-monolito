@@ -20,7 +20,15 @@ import {
   type TeamMember,
 } from '@space-sports/shared';
 import type { AuthUser, SpaceAccess } from '../auth/auth-context.js';
-import { ApiAuth, CurrentSpaceAccess, CurrentUser, SpacePermission } from '../auth/decorators.js';
+import {
+  ApiAuth,
+  CurrentSpaceAccess,
+  CurrentUser,
+  OAuthScopes,
+  OAuthView,
+  SpacePermission,
+} from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiUuidParam, ApiZodBody, ApiZodResponse } from '../openapi/zod-openapi.js';
@@ -52,6 +60,8 @@ export class TeamController {
   ) {}
 
   @Get()
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.team)
   @SpacePermission('team.manage')
   @ApiOperation({
     operationId: 'getTeam',

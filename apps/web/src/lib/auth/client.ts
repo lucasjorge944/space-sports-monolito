@@ -1,12 +1,18 @@
 'use client';
 
+import { oauthProviderClient } from '@better-auth/oauth-provider/client';
 import { createAuthClient } from 'better-auth/react';
 
 /**
  * Client do Better Auth. Fala com a API pelo mesmo domínio do web (rewrite de `/v1` no Next), então
  * o cookie de sessão fica no domínio do web e o `proxy.ts` consegue enxergá-lo.
  */
-export const authClient = createAuthClient({ basePath: '/v1/auth' });
+export const authClient = createAuthClient({
+  basePath: '/v1/auth',
+  // No fluxo OAuth do MCP (página com `sig` na URL), anexa o `oauth_query` assinado a todo POST
+  // (login, `continue`, `consent`); fora dele não faz nada. Ver `lib/auth/oauth.ts`.
+  plugins: [oauthProviderClient()],
+});
 
 type SignUpEmailInput = Parameters<typeof authClient.signUp.email>[0];
 

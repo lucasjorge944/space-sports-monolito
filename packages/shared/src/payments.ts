@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { localDateSchema, pageFields } from './booking';
+import {
+  localDateSchema,
+  PERIOD_MAX_DATE,
+  PERIOD_MIN_DATE,
+  pageFields,
+  periodDateSchema,
+} from './booking';
 import { normalizeCnpj, normalizeCpf } from './masks';
 import { centsSchema } from './money';
 import {
@@ -555,10 +561,10 @@ const month = z.string().regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/, 'Use AAAA-MM.');
 /** Receita da plataforma (RF-ONPAY-11). Período por data local (America/Sao_Paulo), inclusive. */
 export const platformRevenueQuerySchema = z
   .object({
-    /** Padrão: dia 1 do mês atual. */
-    from: isoDate.optional(),
-    /** Padrão: hoje. */
-    to: isoDate.optional(),
+    /** De 2000-01-01 a 2100-12-31 (`periodDateSchema`). Padrão: dia 1 do mês atual. */
+    from: periodDateSchema.optional(),
+    /** De 2000-01-01 a 2100-12-31. Padrão: hoje. */
+    to: periodDateSchema.optional(),
     spaceId: id.optional(),
     method: onlinePaymentMethodSchema.optional(),
   })
@@ -600,7 +606,13 @@ export type PlatformRevenue = z.infer<typeof platformRevenueSchema>;
  * completo do cadastro no gateway; cada leitura e exportação fica na auditoria
  * (`super.payment_report.*`).
  */
-export const monthlyFeeReportQuerySchema = z.object({ month });
+export const monthlyFeeReportQuerySchema = z.object({
+  /** De 2000-01 a 2100-12 (os meses dos filtros de período, `periodDateSchema`). */
+  month: month.refine(
+    (value) => value >= PERIOD_MIN_DATE.slice(0, 7) && value <= PERIOD_MAX_DATE.slice(0, 7),
+    { message: 'Use um mês entre 01/2000 e 12/2100.' },
+  ),
+});
 export type MonthlyFeeReportQuery = z.infer<typeof monthlyFeeReportQuerySchema>;
 
 export const monthlyFeeReportSchema = z.object({

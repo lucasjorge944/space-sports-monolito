@@ -86,6 +86,18 @@ export const favoriteSportSchema = z.object({
 });
 export type FavoriteSport = z.infer<typeof favoriteSportSchema>;
 
+/**
+ * GET /v1/me/summary: o mínimo para o assistente conectado cumprimentar e sugerir esportes (token
+ * do MCP, qualquer escopo). Sem contato, nascimento, gênero, papéis nem vínculos com espaços.
+ */
+export const meSummarySchema = z.object({
+  id: z.uuid(),
+  /** Primeira palavra do nome. */
+  firstName: z.string(),
+  favoriteSports: z.array(favoriteSportSchema),
+});
+export type MeSummary = z.infer<typeof meSummarySchema>;
+
 // ---------------------------------------------------------------------------------------------
 // Completar cadastro (decisão 66)
 

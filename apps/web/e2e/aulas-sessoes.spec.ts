@@ -50,6 +50,33 @@ test.describe('calendário de sessões', () => {
     await expect(page.getByTestId('session-card').filter({ hasText: 'Realizada' })).toHaveCount(1);
   });
 
+  test('data fora da faixa da API na URL é ignorada e abre hoje', async ({ page, context }) => {
+    await loginAs(context, 'manager');
+    await setClock(page);
+    for (const data of ['9999-12-31', '1999-12-31', '2026-02-30']) {
+      await page.goto(`/painel/aulas/sessoes?data=${data}&visao=dia`);
+      await expect(page.getByRole('heading', { name: 'Sessões' })).toBeVisible();
+      await expect(page.getByTestId('session-card'), data).toHaveCount(12);
+      await expect(page.getByLabel('Ir para a data'), data).toHaveValue('04/11/2026');
+    }
+    await page.goto('/painel/aulas/sessoes?data=9999-12-31&visao=semana');
+    await expect(page.getByTestId('session-card').first()).toBeVisible();
+  });
+
+  test('o seletor de data não aceita ano fora da faixa da API', async ({ page, context }) => {
+    await loginAs(context, 'manager');
+    await setClock(page);
+    await page.goto(`/painel/aulas/sessoes?data=${DAY}&visao=dia`);
+    const picker = page.getByLabel('Ir para a data');
+    await picker.fill('31/12/9999');
+    await expect(picker).toHaveAttribute('aria-invalid', 'true');
+    await expect(page).toHaveURL(/data=2026-11-04/);
+    await expect(page.getByTestId('session-card')).toHaveCount(12);
+    // Dentro da faixa, vale.
+    await picker.fill('05/11/2026');
+    await expect(page).toHaveURL(/data=2026-11-05/);
+  });
+
   test('semana mostra os sete dias e o filtro de situação refaz a consulta', async ({
     page,
     context,
@@ -428,6 +455,29 @@ test.describe('presença e frequência', () => {
     await expect(page.getByTestId('history')).toContainText('Histórico de Ana Souza');
     await expect(page.getByTestId('history-row').first()).toBeVisible();
     await expect(page.getByTestId('history')).toContainText('Presente');
+  });
+
+  test('período fora da faixa da API na URL volta aos últimos 30 dias; digitar ano 9999 não vale', async ({
+    page,
+    context,
+  }) => {
+    await loginAs(context, 'manager');
+    await page.clock.install({ time: new Date('2026-11-04T10:00:00Z') });
+    await page.goto(
+      `/painel/aulas/sessoes/presencas?turma=${ID(701)}&de=9999-01-01&ate=9999-12-31`,
+    );
+    await expect(page.getByTestId('frequency')).toContainText('Aulas dadas');
+    await expect(page.getByLabel('De', { exact: true })).toHaveValue('06/10/2026');
+    await expect(page.getByLabel('Até', { exact: true })).toHaveValue('04/11/2026');
+
+    const from = page.getByLabel('De', { exact: true });
+    await from.fill('10/10/2026');
+    await expect(page).toHaveURL(/de=2026-10-10/);
+    await from.fill('01/01/9999');
+    await expect(from).toHaveAttribute('aria-invalid', 'true');
+    // A data fora da faixa não vai para a URL (nem para a API).
+    await expect(page).toHaveURL(/de=2026-10-10/);
+    await expect(page.getByTestId('frequency')).toContainText('Aulas dadas');
   });
 
   test('sem turma nem aluno pede a escolha; período inválido é recusado', async ({

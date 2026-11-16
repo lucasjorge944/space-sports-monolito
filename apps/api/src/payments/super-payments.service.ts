@@ -64,20 +64,20 @@ export const NFSE_CSV_COLUMNS = [
  * venda), taxa devolvida (`FEE_REFUND`) e a recobrança da contestação ganha (`PLATFORM_FEE` de um
  * chargeback). A tarifa do gateway entra pela data do pagamento da cobrança.
  */
-const ledgerFigures = {
+export const ledgerFigures = {
   chargesCount: sql<number>`(count(*) FILTER (WHERE ${spaceLedgerEntries.kind} = 'SALE'))::int`,
   volumeCents: sql<string>`coalesce(sum(${spaceLedgerEntries.amountCents}) FILTER (WHERE ${spaceLedgerEntries.kind} = 'SALE'), 0)::bigint`,
   grossFeeCents: sql<string>`coalesce(-sum(${spaceLedgerEntries.amountCents}) FILTER (WHERE ${spaceLedgerEntries.kind} = 'PLATFORM_FEE' AND ${spaceLedgerEntries.refundId} IS NULL), 0)::bigint`,
   feeRechargedCents: sql<string>`coalesce(-sum(${spaceLedgerEntries.amountCents}) FILTER (WHERE ${spaceLedgerEntries.kind} = 'PLATFORM_FEE' AND ${spaceLedgerEntries.refundId} IS NOT NULL), 0)::bigint`,
   feeRefundedCents: sql<string>`coalesce(sum(${spaceLedgerEntries.amountCents}) FILTER (WHERE ${spaceLedgerEntries.kind} = 'FEE_REFUND'), 0)::bigint`,
 };
-const costFigure = {
+export const costFigure = {
   gatewayCostCents: sql<string>`coalesce(sum(${onlineCharges.gatewayCostCents}), 0)::bigint`,
 };
 
 type LedgerRow = { [K in keyof typeof ledgerFigures]: unknown };
 
-function toFigures(row: LedgerRow | undefined, cost: unknown): RevenueFigures {
+export function toFigures(row: LedgerRow | undefined, cost: unknown): RevenueFigures {
   const gross = num(row?.grossFeeCents);
   const refunded = num(row?.feeRefundedCents);
   const recharged = num(row?.feeRechargedCents);

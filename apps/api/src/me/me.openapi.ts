@@ -1,5 +1,6 @@
 import {
   accountDeletionReceiptSchema,
+  meSummarySchema,
   publicAccountDeletionResponseSchema,
   publicAccountDeletionSchema,
   requestAccountDeletionSchema,
@@ -10,6 +11,7 @@ import { openApiSchema } from '../openapi/zod-openapi.js';
 // Componentes OpenAPI da conta do titular, a partir dos schemas de @space-sports/shared.
 
 export const meSchemas = {
+  summary: openApiSchema(meSummarySchema, 'MeSummary', 'output'),
   updateProfile: openApiSchema(updateProfileSchema, 'UpdateProfileInput', 'input'),
   requestDeletion: openApiSchema(
     requestAccountDeletionSchema,

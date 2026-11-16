@@ -100,7 +100,7 @@ Não inclui transferência de dados, ECR e CloudWatch, que devem ser pequenos no
 ## 5. Demais escolhas
 
 - **Contas:** staging e production na mesma conta-membro.
-- **Subdomínios:** `app.` e `api.` em produção; `staging.` e `api-staging.` no staging.
+- **Subdomínios:** `app.`, `api.`, `mcp.` e `mcp-admin.` (servidor MCP: conector do jogador e da gestão, e o do Super; `14-mcp.md`, seção 8.1) em produção; `staging.`, `api-staging.`, `mcp-staging.` e `mcp-admin-staging.` no staging.
 - **E-mail:** Resend.
 - **Infraestrutura como código:** CDK em TypeScript.
 

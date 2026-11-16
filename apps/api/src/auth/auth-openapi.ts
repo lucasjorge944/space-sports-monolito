@@ -1,6 +1,7 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
 import { BRAZILIAN_PHONE_REGEX } from '@space-sports/shared';
 import { AUTH_BASE_PATH, AUTH_COOKIE_PREFIX, INTERNAL_USER_FIELDS } from './auth.js';
+import { isOAuthServerPath } from './oauth-server.js';
 import { ROUTES_WITHOUT_IMAGE } from './profile-image.js';
 
 type Json = Record<string, unknown>;
@@ -29,6 +30,19 @@ const DISABLED_OPERATIONS: Record<string, string> = {
     'Desligada (RF-AUTH-03, decisão 29): responde 404. O app inativa a conta com `POST /v1/me/deactivate`.',
   'get /delete-user/callback': 'Desligada (RF-AUTH-03, decisão 29): responde 404.',
 };
+/**
+ * Modelos do servidor OAuth do MCP (plugins `jwt` e `oauth-provider`): internos, fora do contrato.
+ */
+const OAUTH_MODELS = new Set([
+  'Jwks',
+  'OauthClient',
+  'OauthResource',
+  'OauthClientResource',
+  'OauthRefreshToken',
+  'OauthAccessToken',
+  'OauthConsent',
+  'OauthClientAssertion',
+]);
 /** Provedores sociais do produto (RF-AUTH-01); o Better Auth lista todos os que suporta. */
 const SOCIAL_PROVIDERS = ['google', 'apple'];
 
@@ -39,7 +53,10 @@ const SOCIAL_PROVIDERS = ['google', 'apple'];
  * - erros 4xx/5xx no formato padrão da API (o AuthController converte as respostas);
  * - modelos User/Session/Account/Verification como AuthUser/AuthSession/...;
  * - `type: [X, 'null']` (OpenAPI 3.1) convertido para `nullable` (o Nest gera 3.0), e
- *   `propertyNames` (só 3.1; o Better Auth só o usa como `{ type: 'string' }`) removido.
+ *   `propertyNames` (só 3.1; o Better Auth só o usa como `{ type: 'string' }`) removido;
+ * - sem o servidor OAuth do MCP (`/oauth2/*`, `/jwks` e os modelos dele): é o protocolo padrão
+ *   (RFC 6749/8414) que os clientes MCP descobrem pelo metadata, com erros no formato do RFC, e o
+ *   web o usa pelo cliente do Better Auth (docs/14-mcp.md 3.5).
  */
 export function mergeAuthOpenApi(document: OpenAPIObject, authDocument: Json): OpenAPIObject {
   const auth = renameModelRefs(toOpenApi30(structuredClone(authDocument))) as Json;
@@ -48,6 +65,7 @@ export function mergeAuthOpenApi(document: OpenAPIObject, authDocument: Json): O
 
   const paths: Record<string, Json> = {};
   for (const [path, operations] of Object.entries(authPaths)) {
+    if (isOAuthServerPath(path)) continue;
     const methods = Object.keys(operations).filter((method) => HTTP_METHODS.has(method));
     paths[`${AUTH_BASE_PATH}${path}`] = Object.fromEntries(
       methods.map((method) => [
@@ -59,10 +77,9 @@ export function mergeAuthOpenApi(document: OpenAPIObject, authDocument: Json): O
   patchRequestBodies(paths);
 
   const schemas = Object.fromEntries(
-    Object.entries(authComponents.schemas ?? {}).map(([name, schema]) => [
-      `${MODEL_PREFIX}${name}`,
-      schema,
-    ]),
+    Object.entries(authComponents.schemas ?? {})
+      .filter(([name]) => !OAUTH_MODELS.has(name))
+      .map(([name, schema]) => [`${MODEL_PREFIX}${name}`, schema]),
   );
   patchUserSchema(schemas[`${MODEL_PREFIX}User`]);
 

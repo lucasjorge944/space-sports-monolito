@@ -117,7 +117,7 @@ Entrada no app: uma barra "O que você quer jogar?" no topo da vitrine (`(tabs)/
 | ID | Caso | Camada |
 |---|---|---|
 | **AI-EXT-01** | **Reserva pelo WhatsApp.** O primeiro problema de `01-visao-produto.md` é "reserva por WhatsApp com idas e vindas". O mesmo agente, com as mesmas ferramentas, atende no WhatsApp com mensagens interativas (listas e botões), confirmação e link para o app. Junta-se ao item 5 do backlog da Fase 4 | Adaptador de canal sobre o mesmo núcleo |
-| **AI-EXT-02** | **Servidor MCP público** com busca de espaços, disponibilidade e reserva (com login OAuth do usuário), para assistentes como Claude e ChatGPT | MCP (+ A2UI em MCP Apps) |
+| **AI-EXT-02** | **Servidor MCP público** com busca de espaços, disponibilidade e reserva (com login OAuth do usuário), para assistentes como Claude e ChatGPT. **Antecipado em 2026-11-11** (decisão 110): ver `14-mcp.md` | MCP (+ A2UI em MCP Apps) |
 | **AI-EXT-03** | **Agente A2A** com Agent Card em `spacesports.com.br`, para parceiros e agentes de terceiros (Wellhub/TotalPass, organizadores de eventos, agentes de concierge) | A2A |
 
 ## 5. Arquitetura proposta

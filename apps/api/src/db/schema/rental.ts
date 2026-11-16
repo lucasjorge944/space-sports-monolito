@@ -19,6 +19,7 @@ import { sports } from './catalog.js';
 import { id, timestamps, tstz } from './columns.js';
 import { contacts } from './contacts.js';
 import {
+  bookingChannel,
   bookingPaymentStatus,
   bookingSource,
   bookingStatus,
@@ -65,6 +66,8 @@ export const bookings = pgTable(
     paymentStatus: bookingPaymentStatus().notNull().default('PENDING'),
     intendedPaymentMethod: paymentMethod(),
     source: bookingSource().notNull(),
+    /** Canal da criação (RN-MCP-03); as reservas antigas ficam `DIRECT`. */
+    channel: bookingChannel().notNull().default('DIRECT'),
     recurringBookingId: uuid().references((): AnyPgColumn => recurringBookings.id),
     cancelledAt: tstz(),
     cancelledBy: uuid().references(() => users.id),

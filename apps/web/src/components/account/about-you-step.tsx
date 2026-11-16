@@ -32,10 +32,12 @@ export function AboutYouStep({ next }: { next: string | undefined }) {
   const [errors, setErrors] = useState<AboutErrors>();
   const [leaving, setLeaving] = useState(false);
 
+  // Sem `next` nem `/v1/me`, o `/painel`: o `proxy.ts` leva cada perfil à sua área.
+  const target = next ?? (me.data ? destinationFor(me.data) : '/painel');
+
   function finish() {
     setLeaving(true);
-    // Sem `next` nem `/v1/me`, o `/painel`: o `proxy.ts` leva cada perfil à sua área.
-    window.location.assign(next ?? (me.data ? destinationFor(me.data) : '/painel'));
+    window.location.assign(target);
   }
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -67,8 +69,21 @@ export function AboutYouStep({ next }: { next: string | undefined }) {
           <SubmitButton size="xl" pending={busy} pendingLabel="Salvando…">
             Salvar e continuar
           </SubmitButton>
-          <Button type="button" variant="ghost" size="xl" disabled={busy} onClick={finish}>
-            Pular
+          {/* Link, não botão: "Pular" só navega e precisa funcionar também antes da hidratação (a
+              página já aparece, mas o clique vindo cedo demais se perderia). */}
+          <Button asChild variant="ghost" size="xl">
+            <a
+              href={target}
+              aria-disabled={busy || undefined}
+              tabIndex={busy ? -1 : undefined}
+              className={busy ? 'pointer-events-none opacity-50' : undefined}
+              onClick={(event) => {
+                if (busy) return event.preventDefault();
+                setLeaving(true);
+              }}
+            >
+              Pular
+            </a>
           </Button>
         </div>
       </form>

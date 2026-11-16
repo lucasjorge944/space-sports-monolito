@@ -1,6 +1,7 @@
 // Gera o cliente a partir do OpenAPI da API, sem servidor no ar:
 //   1. apps/api/dist/openapi/export.js grava o openapi.json (env fixo, login por telefone desligado);
-//   2. o orval gera src/generated (funções fetch + hooks TanStack Query) usando src/mutator.ts.
+//   2. o orval gera src/generated (funções fetch + hooks TanStack Query) usando src/mutator.ts, e
+//      src/generated/fetch (só as funções fetch, sem React Query, para servidores Node como o MCP).
 // O openapi.json e o src/generated são versionados. Com --check, gera numa pasta temporária e
 // falha se o resultado diferir do versionado (CI). Precisa do build da API: rode pela raiz,
 // `pnpm generate:api-client` ou `pnpm generate:api-client:check`, que o turbo faz antes.
@@ -58,14 +59,21 @@ async function generateInto(dir) {
   const spec = join(dir, 'openapi.json');
   mkdirSync(dir, { recursive: true });
   execFileSync(process.execPath, [apiExport, spec], { stdio: 'inherit' });
+  // Hooks do TanStack Query (web e app) e, depois, só as funções fetch (`@space-sports/api-client/fetch`,
+  // sem React no runtime). As duas saídas escrevem o mesmo `model`, idêntico nas duas.
+  await generateClient(dir, { client: 'react-query', target: 'src/generated/endpoints' });
+  await generateClient(dir, { client: 'fetch', target: 'src/generated/fetch' });
+}
+
+async function generateClient(dir, { client, target }) {
   await generate(
     {
-      input: { target: spec },
+      input: { target: join(dir, 'openapi.json') },
       output: {
         mode: 'tags-split',
-        target: join(dir, 'src/generated/endpoints'),
+        target: join(dir, target),
         schemas: join(dir, 'src/generated/model'),
-        client: 'react-query',
+        client,
         httpClient: 'fetch',
         clean: true,
         // Fixos no pacote, para a saída não depender da pasta de geração (modo --check).
@@ -75,7 +83,7 @@ async function generateInto(dir) {
           mutator: { path: join(dir, 'src/mutator.ts'), name: 'customFetch' },
           // O mutator devolve só o corpo e lança ApiError nos erros.
           fetch: { includeHttpResponseReturnType: false },
-          query: { signal: true },
+          ...(client === 'react-query' ? { query: { signal: true } } : {}),
         },
       },
     },

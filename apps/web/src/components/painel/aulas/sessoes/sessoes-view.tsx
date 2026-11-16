@@ -27,10 +27,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDayLabel, formatLocalDate, todayLocal } from '@/lib/format';
 import { weekDates } from '@/lib/painel/agenda';
 import { groupByDay, SESSION_STATUS } from '@/lib/painel/sessions';
+import { clampPeriodDate, PERIOD_RANGE, periodDateParam } from '@/lib/period';
 import { overline } from '@/lib/utils';
 import { SessionCard } from './session-card';
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ALL = 'all';
 const STATUSES = Object.keys(SESSION_STATUS) as ListClassSessionsStatusItem[];
 
@@ -48,7 +48,7 @@ function Sessoes({ scope }: { scope: SpaceScope }) {
   const params = useSearchParams();
 
   const rawDate = params.get('data');
-  const date = rawDate && DATE_RE.test(rawDate) ? rawDate : todayLocal();
+  const date = periodDateParam(rawDate, todayLocal());
   const view = params.get('visao') === 'dia' ? 'dia' : 'semana';
   const classGroupId = params.get('turma') ?? ALL;
   const teacherMemberId = params.get('professor') ?? ALL;
@@ -64,8 +64,9 @@ function Sessoes({ scope }: { scope: SpaceScope }) {
   }
 
   const days = useMemo(() => (view === 'semana' ? weekDates(date) : [date]), [view, date]);
-  const from = days[0] as string;
-  const to = days[days.length - 1] as string;
+  // A semana que contém o último dia aceito termina depois dele: a API recusa `to` fora da faixa.
+  const from = clampPeriodDate(days[0] as string);
+  const to = clampPeriodDate(days[days.length - 1] as string);
 
   const sessionsQuery = useListClassSessions(
     scope.spaceId,
@@ -116,7 +117,7 @@ function Sessoes({ scope }: { scope: SpaceScope }) {
           variant="outline"
           size="icon"
           aria-label={view === 'semana' ? 'Semana anterior' : 'Dia anterior'}
-          onClick={() => navigate({ data: addDays(date, -step) })}
+          onClick={() => navigate({ data: clampPeriodDate(addDays(date, -step)) })}
         >
           <ChevronLeft />
         </Button>
@@ -127,7 +128,7 @@ function Sessoes({ scope }: { scope: SpaceScope }) {
           variant="outline"
           size="icon"
           aria-label={view === 'semana' ? 'Próxima semana' : 'Próximo dia'}
-          onClick={() => navigate({ data: addDays(date, step) })}
+          onClick={() => navigate({ data: clampPeriodDate(addDays(date, step)) })}
         >
           <ChevronRight />
         </Button>
@@ -135,6 +136,8 @@ function Sessoes({ scope }: { scope: SpaceScope }) {
           aria-label="Ir para a data"
           className="w-40"
           value={date}
+          min={PERIOD_RANGE.min}
+          max={PERIOD_RANGE.max}
           onValueChange={(d) => d && navigate({ data: d })}
         />
         <Tabs value={view} onValueChange={(v) => navigate({ visao: v })}>

@@ -28,6 +28,7 @@ import {
   cursorText,
   isPublicSummaryVisible,
   pageOf,
+  personalDataReported,
   publicReviewColumns,
   ratingDistribution,
   tagHighlights,
@@ -58,7 +59,15 @@ export class ManageReviewsService {
     private readonly events: DomainEvents,
   ) {}
 
-  async list(spaceId: string, query: ManageReviewsQuery): Promise<ManageReviewPage> {
+  /**
+   * `withoutPersonalComments` (token do MCP, decisão 122): o comentário com denúncia de dado
+   * pessoal sai nulo, como o oculto.
+   */
+  async list(
+    spaceId: string,
+    query: ManageReviewsQuery,
+    { withoutPersonalComments = false }: { withoutPersonalComments?: boolean } = {},
+  ): Promise<ManageReviewPage> {
     const rows = await this.db
       .select({
         ...publicReviewColumns,
@@ -77,12 +86,21 @@ export class ManageReviewsService {
       )
       .orderBy(desc(spaceReviews.createdAt), desc(spaceReviews.id))
       .limit(query.limit + 1);
-    return pageOf(
+    const page = pageOf(
       rows,
       query.limit,
       (row) => row.review.id,
       (row): ManageReview => ({ ...toPublicReview(row), reportedBySpace: row.reportedBySpace }),
     );
+    if (!withoutPersonalComments) return page;
+    const personal = await personalDataReported(
+      this.db,
+      page.items.map((item) => item.id),
+    );
+    return {
+      ...page,
+      items: page.items.map((item) => (personal.has(item.id) ? { ...item, comment: null } : item)),
+    };
   }
 
   /**

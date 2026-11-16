@@ -8,7 +8,7 @@ import {
   spaceSearchQuerySchema,
 } from '@space-sports/shared';
 import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser, Public } from '../auth/decorators.js';
+import { ApiAuth, CurrentUser, OAuthScopes, Public } from '../auth/decorators.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiUuidParam, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi.js';
@@ -24,6 +24,7 @@ export class PublicSpacesController {
 
   @Get('spaces')
   @Public()
+  @OAuthScopes('spaces:read')
   @ApiOperation({
     operationId: 'searchSpaces',
     summary: 'Buscar espaços na vitrine (raio, esporte, serviço, infraestrutura, nome, nota)',
@@ -40,6 +41,7 @@ export class PublicSpacesController {
 
   @Get('spaces/:slug')
   @Public()
+  @OAuthScopes('spaces:read')
   @ApiParam({ name: 'slug', example: 'arena-7' })
   @ApiOperation({
     operationId: 'getSpaceBySlug',

@@ -1,5 +1,6 @@
 export * from './address';
 export * from './ads';
+export * from './analytics';
 export * from './attendance';
 export * from './auth';
 export * from './availability';
@@ -9,6 +10,7 @@ export * from './classes';
 export * from './contacts';
 export * from './fake-card';
 export * from './masks';
+export * from './mcp';
 export * from './money';
 export * from './notifications';
 export * from './online-payments';

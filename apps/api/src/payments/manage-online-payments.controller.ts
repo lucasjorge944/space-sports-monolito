@@ -34,7 +34,15 @@ import {
 } from '@space-sports/shared';
 import type { Response } from 'express';
 import type { AuthUser, SpaceAccess } from '../auth/auth-context.js';
-import { ApiAuth, CurrentSpaceAccess, CurrentUser, SpacePermission } from '../auth/decorators.js';
+import {
+  ApiAuth,
+  CurrentSpaceAccess,
+  CurrentUser,
+  OAuthScopes,
+  OAuthView,
+  SpacePermission,
+} from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiUuidParam, ApiZodBody, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi.js';
@@ -168,6 +176,8 @@ export class ManageOnlinePaymentsController {
   // Carteira -----------------------------------------------------------------------------------
 
   @Get('wallet')
+  @OAuthScopes('manage:finance:read')
+  @OAuthView(mcpViews.walletSummary)
   @SpacePermission('payments.online.manage')
   @ApiOperation({
     operationId: 'getWalletSummary',
@@ -181,6 +191,8 @@ export class ManageOnlinePaymentsController {
   }
 
   @Get('wallet/entries')
+  @OAuthScopes('manage:finance:read')
+  @OAuthView(mcpViews.walletEntries)
   @SpacePermission('payments.online.manage')
   @ApiOperation({
     operationId: 'listWalletEntries',
@@ -239,6 +251,8 @@ export class ManageOnlinePaymentsController {
   // Cobranças e estornos -----------------------------------------------------------------------
 
   @Get('charges')
+  @OAuthScopes('manage:finance:read')
+  @OAuthView(mcpViews.onlineChargePage)
   @SpacePermission('payments.online.manage')
   @ApiOperation({
     operationId: 'listOnlineCharges',
@@ -256,6 +270,8 @@ export class ManageOnlinePaymentsController {
   }
 
   @Get('charges/:chargeId')
+  @OAuthScopes('manage:finance:read')
+  @OAuthView(mcpViews.onlineCharge)
   @SpacePermission('payments.online.manage')
   @ApiUuidParam('chargeId')
   @ApiOperation({ operationId: 'getOnlineCharge', summary: 'Cobrança online' })
@@ -300,6 +316,8 @@ export class ManageOnlinePaymentsController {
   // Contestações -------------------------------------------------------------------------------
 
   @Get('chargebacks')
+  @OAuthScopes('manage:finance:read')
+  @OAuthView(mcpViews.chargebacks)
   @SpacePermission('payments.online.manage')
   @ApiOperation({
     operationId: 'listChargebacks',

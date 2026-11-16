@@ -45,12 +45,16 @@ import type {
   GetAccessToken200,
   GetAccessTokenBody,
   GetSession200,
+  GetSessionParams,
   GetSessionPost200,
   GetSessionPostBody,
+  GetSessionPostParams,
   LinkSocialAccount200,
   LinkSocialAccountBody,
   ListUserAccounts200Item,
+  OauthCallbackParams,
   OauthCallbackPostBody,
+  OauthCallbackPostParams,
   RefreshToken200,
   RefreshTokenBody,
   RequestPasswordReset200,
@@ -59,6 +63,7 @@ import type {
   ResetPasswordBody,
   ResetPasswordCallback200,
   ResetPasswordCallbackParams,
+  ResetPasswordParams,
   RevokeOtherSessions200,
   RevokeOtherSessionsBody,
   RevokeSession200,
@@ -194,17 +199,26 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getSocialSignInMutationOptions(options), queryClient);
     }
-    export const getOauthCallbackUrl = (id: string,) => {
+    export const getOauthCallbackUrl = (id: string,
+    params?: OauthCallbackParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/v1/auth/callback/${id}`
+  return stringifiedParams.length > 0 ? `/v1/auth/callback/${id}?${stringifiedParams}` : `/v1/auth/callback/${id}`
 }
 
-export const oauthCallback = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+export const oauthCallback = async (id: string,
+    params?: OauthCallbackParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
 
-  return customFetch<unknown>(getOauthCallbackUrl(id),
+  return customFetch<unknown>(getOauthCallbackUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -217,23 +231,25 @@ export const oauthCallback = async (id: string, options?: Parameters<typeof cust
 
 
 
-export const getOauthCallbackQueryKey = (id: string,) => {
+export const getOauthCallbackQueryKey = (id: string,
+    params?: OauthCallbackParams,) => {
     return [
-    `/v1/auth/callback/${id}`
+    `/v1/auth/callback/${id}`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getOauthCallbackQueryOptions = <TData = Awaited<ReturnType<typeof oauthCallback>>, TError = ErrorType<ErrorResponseDto>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getOauthCallbackQueryOptions = <TData = Awaited<ReturnType<typeof oauthCallback>>, TError = ErrorType<ErrorResponseDto>>(id: string,
+    params?: OauthCallbackParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getOauthCallbackQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getOauthCallbackQueryKey(id,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof oauthCallback>>> = ({ signal }) => oauthCallback(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof oauthCallback>>> = ({ signal }) => oauthCallback(id,params, { signal, ...requestOptions });
 
 
 
@@ -247,7 +263,8 @@ export type OauthCallbackQueryError = ErrorType<ErrorResponseDto>
 
 
 export function useOauthCallback<TData = Awaited<ReturnType<typeof oauthCallback>>, TError = ErrorType<ErrorResponseDto>>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>> & Pick<
+ id: string,
+    params: undefined |  OauthCallbackParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof oauthCallback>>,
           TError,
@@ -257,7 +274,8 @@ export function useOauthCallback<TData = Awaited<ReturnType<typeof oauthCallback
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useOauthCallback<TData = Awaited<ReturnType<typeof oauthCallback>>, TError = ErrorType<ErrorResponseDto>>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>> & Pick<
+ id: string,
+    params?: OauthCallbackParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof oauthCallback>>,
           TError,
@@ -267,16 +285,18 @@ export function useOauthCallback<TData = Awaited<ReturnType<typeof oauthCallback
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useOauthCallback<TData = Awaited<ReturnType<typeof oauthCallback>>, TError = ErrorType<ErrorResponseDto>>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ id: string,
+    params?: OauthCallbackParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useOauthCallback<TData = Awaited<ReturnType<typeof oauthCallback>>, TError = ErrorType<ErrorResponseDto>>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ id: string,
+    params?: OauthCallbackParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof oauthCallback>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getOauthCallbackQueryOptions(id,options)
+  const queryOptions = getOauthCallbackQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -288,16 +308,25 @@ export function useOauthCallback<TData = Awaited<ReturnType<typeof oauthCallback
 
 
 
-export const getOauthCallbackPostUrl = (id: string,) => {
+export const getOauthCallbackPostUrl = (id: string,
+    params?: OauthCallbackPostParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/v1/auth/callback/${id}`
+  return stringifiedParams.length > 0 ? `/v1/auth/callback/${id}?${stringifiedParams}` : `/v1/auth/callback/${id}`
 }
 
 export const oauthCallbackPost = async (id: string,
-    oauthCallbackPostBody?: OauthCallbackPostBody, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+    oauthCallbackPostBody?: OauthCallbackPostBody,
+    params?: OauthCallbackPostParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -313,7 +342,7 @@ export const oauthCallbackPost = async (id: string,
     }
     return headers;
   };
-return customFetch<unknown>(getOauthCallbackPostUrl(id),
+return customFetch<unknown>(getOauthCallbackPostUrl(id,params),
   {
     ...options,
     method: 'POST',
@@ -343,9 +372,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof oauthCallbackPost>>, OauthCallbackPostMutationVariables> = (props) => {
-          const {id,data} = props ?? {};
+          const {id,data,params} = props ?? {};
 
-          return  oauthCallbackPost(id,data,requestOptions)
+          return  oauthCallbackPost(id,data,params,requestOptions)
         }
 
 
@@ -358,7 +387,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type OauthCallbackPostMutationResult = NonNullable<Awaited<ReturnType<typeof oauthCallbackPost>>>
     export type OauthCallbackPostMutationBody = BodyType<OauthCallbackPostBody> | undefined
     export type OauthCallbackPostMutationError = ErrorType<ErrorResponseDto>
-    export type OauthCallbackPostMutationVariables = {id: string;data?: BodyType<OauthCallbackPostBody>}
+    export type OauthCallbackPostMutationVariables = {id: string;data?: BodyType<OauthCallbackPostBody>;params?: OauthCallbackPostParams}
 
     export const useOauthCallbackPost = <TError = ErrorType<ErrorResponseDto>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof oauthCallbackPost>>, TError,OauthCallbackPostMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -370,20 +399,27 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getOauthCallbackPostMutationOptions(options), queryClient);
     }
-    export const getGetSessionUrl = () => {
+    export const getGetSessionUrl = (params?: GetSessionParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/v1/auth/get-session`
+  return stringifiedParams.length > 0 ? `/v1/auth/get-session?${stringifiedParams}` : `/v1/auth/get-session`
 }
 
 /**
  * Get the current session
  */
-export const getSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<GetSession200> => {
+export const getSession = async (params?: GetSessionParams, options?: Parameters<typeof customFetch>[1]): Promise<GetSession200> => {
 
-  return customFetch<GetSession200>(getGetSessionUrl(),
+  return customFetch<GetSession200>(getGetSessionUrl(params),
   {
     ...options,
     method: 'GET'
@@ -396,23 +432,23 @@ export const getSession = async ( options?: Parameters<typeof customFetch>[1]): 
 
 
 
-export const getGetSessionQueryKey = () => {
+export const getGetSessionQueryKey = (params?: GetSessionParams,) => {
     return [
-    `/v1/auth/get-session`
+    `/v1/auth/get-session`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetSessionQueryOptions = <TData = Awaited<ReturnType<typeof getSession>>, TError = ErrorType<ErrorResponseDto>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getGetSessionQueryOptions = <TData = Awaited<ReturnType<typeof getSession>>, TError = ErrorType<ErrorResponseDto>>(params?: GetSessionParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSessionQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSession>>> = ({ signal }) => getSession({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSession>>> = ({ signal }) => getSession(params, { signal, ...requestOptions });
 
 
 
@@ -426,7 +462,7 @@ export type GetSessionQueryError = ErrorType<ErrorResponseDto>
 
 
 export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TError = ErrorType<ErrorResponseDto>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>> & Pick<
+ params: undefined |  GetSessionParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getSession>>,
           TError,
@@ -436,7 +472,7 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TError = ErrorType<ErrorResponseDto>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>> & Pick<
+ params?: GetSessionParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getSession>>,
           TError,
@@ -446,16 +482,16 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TError = ErrorType<ErrorResponseDto>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: GetSessionParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TError = ErrorType<ErrorResponseDto>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: GetSessionParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetSessionQueryOptions(options)
+  const queryOptions = getGetSessionQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -467,18 +503,26 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
 
 
 
-export const getGetSessionPostUrl = () => {
+export const getGetSessionPostUrl = (params?: GetSessionPostParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/v1/auth/get-session`
+  return stringifiedParams.length > 0 ? `/v1/auth/get-session?${stringifiedParams}` : `/v1/auth/get-session`
 }
 
 /**
  * Get the current session
  */
-export const getSessionPost = async (getSessionPostBody?: GetSessionPostBody, options?: Parameters<typeof customFetch>[1]): Promise<GetSessionPost200> => {
+export const getSessionPost = async (getSessionPostBody?: GetSessionPostBody,
+    params?: GetSessionPostParams, options?: Parameters<typeof customFetch>[1]): Promise<GetSessionPost200> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -494,7 +538,7 @@ export const getSessionPost = async (getSessionPostBody?: GetSessionPostBody, op
     }
     return headers;
   };
-return customFetch<GetSessionPost200>(getGetSessionPostUrl(),
+return customFetch<GetSessionPost200>(getGetSessionPostUrl(params),
   {
     ...options,
     method: 'POST',
@@ -524,9 +568,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof getSessionPost>>, GetSessionPostMutationVariables> = (props) => {
-          const {data} = props ?? {};
+          const {data,params} = props ?? {};
 
-          return  getSessionPost(data,requestOptions)
+          return  getSessionPost(data,params,requestOptions)
         }
 
 
@@ -539,7 +583,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type GetSessionPostMutationResult = NonNullable<Awaited<ReturnType<typeof getSessionPost>>>
     export type GetSessionPostMutationBody = BodyType<GetSessionPostBody> | undefined
     export type GetSessionPostMutationError = ErrorType<ErrorResponseDto>
-    export type GetSessionPostMutationVariables = {data?: BodyType<GetSessionPostBody>}
+    export type GetSessionPostMutationVariables = {data?: BodyType<GetSessionPostBody>;params?: GetSessionPostParams}
 
     export const useGetSessionPost = <TError = ErrorType<ErrorResponseDto>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getSessionPost>>, TError,GetSessionPostMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -803,18 +847,26 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getSignInEmailMutationOptions(options), queryClient);
     }
-    export const getResetPasswordUrl = () => {
+    export const getResetPasswordUrl = (params?: ResetPasswordParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/v1/auth/reset-password`
+  return stringifiedParams.length > 0 ? `/v1/auth/reset-password?${stringifiedParams}` : `/v1/auth/reset-password`
 }
 
 /**
  * Reset the password for a user
  */
-export const resetPassword = async (resetPasswordBody: ResetPasswordBody, options?: Parameters<typeof customFetch>[1]): Promise<ResetPassword200> => {
+export const resetPassword = async (resetPasswordBody: ResetPasswordBody,
+    params?: ResetPasswordParams, options?: Parameters<typeof customFetch>[1]): Promise<ResetPassword200> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -830,7 +882,7 @@ export const resetPassword = async (resetPasswordBody: ResetPasswordBody, option
     }
     return headers;
   };
-return customFetch<ResetPassword200>(getResetPasswordUrl(),
+return customFetch<ResetPassword200>(getResetPasswordUrl(params),
   {
     ...options,
     method: 'POST',
@@ -860,9 +912,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetPassword>>, ResetPasswordMutationVariables> = (props) => {
-          const {data} = props ?? {};
+          const {data,params} = props ?? {};
 
-          return  resetPassword(data,requestOptions)
+          return  resetPassword(data,params,requestOptions)
         }
 
 
@@ -875,7 +927,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ResetPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetPassword>>>
     export type ResetPasswordMutationBody = BodyType<ResetPasswordBody>
     export type ResetPasswordMutationError = ErrorType<ErrorResponseDto>
-    export type ResetPasswordMutationVariables = {data: BodyType<ResetPasswordBody>}
+    export type ResetPasswordMutationVariables = {data: BodyType<ResetPasswordBody>;params?: ResetPasswordParams}
 
     export const useResetPassword = <TError = ErrorType<ErrorResponseDto>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPassword>>, TError,ResetPasswordMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

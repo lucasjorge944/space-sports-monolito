@@ -1,3 +1,5 @@
+import { fetchClientMetadataResource } from '@better-auth/cimd/node';
+import type { ClientMetadataResourceFetch } from '@better-auth/oauth-provider';
 import { Global, Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import type { Redis } from 'ioredis';
@@ -9,13 +11,15 @@ import { DB } from '../infra/database.module.js';
 import { REDIS } from '../infra/redis.module.js';
 import { Mailer } from '../mail/mailer.js';
 import { PhotoStorage } from '../storage/photo-storage.js';
-import { AuthController } from './auth.controller.js';
+import { AuthController, OAuthServerMetadataController } from './auth.controller.js';
 import { type Auth, createAuth } from './auth.js';
 import { AuthService } from './auth.service.js';
-import { AUTH, AUTH_OPENAPI, SMS_SENDER } from './auth.tokens.js';
+import { AUTH, AUTH_OPENAPI, CIMD_FETCH, SMS_SENDER } from './auth.tokens.js';
 import { AuthGuard } from './guards/auth.guard.js';
 import { SpaceRolesGuard } from './guards/space-roles.guard.js';
 import { SuperGuard } from './guards/super.guard.js';
+import { OAuthAccessService } from './oauth-access.service.js';
+import { OAuthOriginInterceptor } from './oauth-origin.interceptor.js';
 import { createSmsSender, type SmsSender } from './sms-sender.js';
 import { SupportModeInterceptor } from './support-mode.interceptor.js';
 
@@ -25,12 +29,13 @@ import { SupportModeInterceptor } from './support-mode.interceptor.js';
  */
 @Global()
 @Module({
-  controllers: [AuthController],
+  controllers: [AuthController, OAuthServerMetadataController],
   providers: [
     { provide: SMS_SENDER, inject: [ENV], useFactory: (env: Env) => createSmsSender(env) },
+    { provide: CIMD_FETCH, useValue: fetchClientMetadataResource },
     {
       provide: AUTH,
-      inject: [ENV, DB, Mailer, SMS_SENDER, REDIS, DomainEvents, PhotoStorage],
+      inject: [ENV, DB, Mailer, SMS_SENDER, REDIS, DomainEvents, PhotoStorage, CIMD_FETCH],
       useFactory: (
         env: Env,
         db: Database,
@@ -39,7 +44,8 @@ import { SupportModeInterceptor } from './support-mode.interceptor.js';
         redis: Redis,
         events: DomainEvents,
         storage: PhotoStorage,
-      ) => createAuth({ env, db, mailer, sms, redis, events, storage }),
+        cimdFetch: ClientMetadataResourceFetch,
+      ) => createAuth({ env, db, mailer, sms, redis, events, storage, cimdFetch }),
     },
     {
       provide: AUTH_OPENAPI,
@@ -47,10 +53,12 @@ import { SupportModeInterceptor } from './support-mode.interceptor.js';
       useFactory: (auth: Auth) => auth.api.generateOpenAPISchema(),
     },
     AuthService,
+    OAuthAccessService,
     SuperGuard,
     SpaceRolesGuard,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: SupportModeInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: OAuthOriginInterceptor },
   ],
   exports: [AUTH, AUTH_OPENAPI, AuthService, SuperGuard, SpaceRolesGuard],
 })

@@ -11,7 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Court, CreateCourt, UpdateCourt } from '@space-sports/shared';
-import { ApiAuth, SpacePermission } from '../auth/decorators.js';
+import { ApiAuth, OAuthScopes, OAuthView, SpacePermission } from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiUuidParam, ApiZodBody, ApiZodResponse } from '../openapi/zod-openapi.js';
@@ -30,6 +31,8 @@ export class CourtsController {
   constructor(private readonly service: CourtsService) {}
 
   @Get()
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.courtList)
   @SpacePermission('schedule.view')
   @ApiOperation({ operationId: 'listCourts', summary: 'Quadras do espaço' })
   @ApiZodResponse(schemas.courtList)
@@ -55,6 +58,8 @@ export class CourtsController {
   }
 
   @Get(':courtId')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.court)
   @SpacePermission('schedule.view')
   @ApiUuidParam('courtId')
   @ApiOperation({ operationId: 'getCourt', summary: 'Detalhe da quadra' })

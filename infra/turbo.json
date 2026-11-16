@@ -3,7 +3,19 @@
   "extends": ["//"],
   "tasks": {
     "test": {
-      "inputs": ["$TURBO_DEFAULT$", "github-workflows-desativados/deploy-staging.yml"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "github-workflows-desativados/deploy-staging.yml",
+        "$TURBO_ROOT$/apps/mcp/src/**",
+        "$TURBO_ROOT$/apps/mcp/package.json"
+      ]
+    },
+    "typecheck": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/mcp/src/**",
+        "$TURBO_ROOT$/apps/mcp/package.json"
+      ]
     }
   }
 }

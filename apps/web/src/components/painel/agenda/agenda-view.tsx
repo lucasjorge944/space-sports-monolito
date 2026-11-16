@@ -37,11 +37,10 @@ import {
   rangeBounds,
   weekDates,
 } from '@/lib/painel/agenda';
+import { clampPeriodDate, PERIOD_RANGE, periodDateParam } from '@/lib/period';
 import { type AgendaColumn, AgendaGrid } from './agenda-grid';
 import { BlockDialog, type BlockDraft, BlockInfoDialog } from './block-dialogs';
 import { DeskBookingDialog, type DeskDraft } from './desk-booking-dialog';
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function AgendaView() {
   return (
@@ -57,7 +56,7 @@ function Agenda({ scope }: { scope: SpaceScope }) {
   const params = useSearchParams();
 
   const rawDate = params.get('data');
-  const date = rawDate && DATE_RE.test(rawDate) ? rawDate : todayLocal();
+  const date = periodDateParam(rawDate, todayLocal());
   const view = params.get('visao') === 'semana' ? 'semana' : 'dia';
   const courtParam = params.get('quadra');
 
@@ -184,7 +183,9 @@ function Agenda({ scope }: { scope: SpaceScope }) {
           variant="outline"
           size="icon"
           aria-label={view === 'semana' ? 'Semana anterior' : 'Dia anterior'}
-          onClick={() => navigate({ data: addDays(date, view === 'semana' ? -7 : -1) })}
+          onClick={() =>
+            navigate({ data: clampPeriodDate(addDays(date, view === 'semana' ? -7 : -1)) })
+          }
         >
           <ChevronLeft />
         </Button>
@@ -195,7 +196,9 @@ function Agenda({ scope }: { scope: SpaceScope }) {
           variant="outline"
           size="icon"
           aria-label={view === 'semana' ? 'Próxima semana' : 'Próximo dia'}
-          onClick={() => navigate({ data: addDays(date, view === 'semana' ? 7 : 1) })}
+          onClick={() =>
+            navigate({ data: clampPeriodDate(addDays(date, view === 'semana' ? 7 : 1)) })
+          }
         >
           <ChevronRight />
         </Button>
@@ -203,6 +206,8 @@ function Agenda({ scope }: { scope: SpaceScope }) {
           aria-label="Ir para a data"
           className="w-40"
           value={date}
+          min={PERIOD_RANGE.min}
+          max={PERIOD_RANGE.max}
           onValueChange={(d) => d && navigate({ data: d })}
         />
         <Tabs value={view} onValueChange={(v) => navigate({ visao: v })}>

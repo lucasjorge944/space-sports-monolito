@@ -12,8 +12,12 @@
 # (PAYMENTS_DATA_KEY, decisão 97) é obrigatória com NODE_ENV=production e também chega pelo
 # env/api.env; trocá-la deixa os documentos gravados ilegíveis.
 #
-# Os limites de memória somam 1.504 MB e deixam cerca de 400 MB para o sistema, o Docker e o agente
-# do SSM. migrate e seed são curtos e, se apertar, usam o swap.
+# O segredo do servidor MCP (MCP_CONFIRMATION_SECRET) chega pelo env/mcp.env, lido só pelo serviço
+# `mcp`.
+#
+# Os limites de memória somam 1.600 MB e deixam cerca de 300 MB para o sistema, o Docker e o agente
+# do SSM. migrate e seed são curtos e, se apertar, usam o swap. Medições e motivos: infra/README.md,
+# seção Memória (na MCP2.8, os 32 MB a mais do `mcp` saíram do `web`, que não tem pico medido: passo 8).
 name: space-sports
 
 x-logging: &logging
@@ -45,6 +49,18 @@ x-api-environment: &api-environment
   # Sem chaves, e sem tentar o serviço de metadados, que o contêiner não alcança.
   AWS_CONFIG_FILE: /run/aws/config
   AWS_EC2_METADATA_DISABLED: "true"
+  # Servidor MCP (docs/14-mcp.md): a API é o servidor de autorização, e MCP_RESOURCE_URL vira o `aud`
+  # dos tokens (tem de ser igual à do serviço `mcp`). Com DEPLOY_ENV=staging e MCP_RESOURCE_URL, a API
+  # liga o MCP sozinha. MCP_ENABLED fica fora daqui de propósito: o environment do compose venceria o
+  # env/api.env, e a chave de emergência é o parâmetro api/MCP_ENABLED=false (infra/README.md). O
+  # registro dinâmico (MCP_DYNAMIC_CLIENT_REGISTRATION) fica desligado: o Claude usa o CIMD.
+  MCP_RESOURCE_URL: https://mcp-staging.spacesports.com.br/mcp
+  # Conector do Super ("Space Sports · Plataforma", docs/14-mcp.md 8.1): o segundo recurso, igual ao
+  # MCP_ADMIN_RESOURCE_URL do serviço `mcp`. Com ela e DEPLOY_ENV=staging, a API liga o recurso do
+  # Super. Também fora daqui, pelo mesmo motivo do MCP_ENABLED: MCP_ADMIN_ENABLED (chave de emergência
+  # só do Super, parâmetro api/MCP_ADMIN_ENABLED=false) e MCP_ADMIN_ALLOWED_CLIENT_IDS (parâmetro
+  # api/MCP_ADMIN_ALLOWED_CLIENT_IDS; sem ele, a API recusa todo cliente no recurso do Super).
+  MCP_ADMIN_RESOURCE_URL: https://mcp-admin-staging.spacesports.com.br/mcp
 
 x-api-service: &api-service
   image: ${ECR_REGISTRY:?}/space-sports/api:${IMAGE_TAG:?}
@@ -101,11 +117,13 @@ services:
       - edge
       - data
 
+  # 352 MB com heap de 224 MB: eram 384/256 MB, e os 32 MB foram para o `mcp` (MCP2.8), mantendo os
+  # 128 MB fora do heap. O pico do web nunca foi medido: confira no passo 8 do infra/README.md.
   web:
     image: ${ECR_REGISTRY:?}/space-sports/web:${IMAGE_TAG:?}
     restart: unless-stopped
     environment:
-      NODE_OPTIONS: --max-old-space-size=256
+      NODE_OPTIONS: --max-old-space-size=224
       SITE_URL: https://staging.spacesports.com.br
       # Login social ligado na API (GOOGLE_CLIENT_* no Parameter Store); lido a cada requisição.
       AUTH_PROVIDERS: google
@@ -113,7 +131,58 @@ services:
       api:
         condition: service_healthy
     logging: *logging
-    mem_limit: 384m
+    mem_limit: 352m
+    networks:
+      - edge
+
+  # Servidor MCP (apps/mcp): sem banco e sem chave de serviço, chama a API com o token do próprio
+  # usuário. Só na rede edge: recebe do Caddy e fala com a API pelo nome do serviço. O `iss` dos tokens
+  # é o BETTER_AUTH_URL da API + /v1/auth; o JWKS é lido direto da API (http://api:3333), sem dar a
+  # volta pelo Caddy, o que o MCP_INTERNAL_HOSTS permite com NODE_ENV=production.
+  # Serve os dois conectores (MCP_SURFACES, docs/14-mcp.md 8.1): `user` em mcp-staging. (jogador e
+  # gestão) e `admin` em mcp-admin-staging. (Super), escolhidos pelo host que o Caddy repassa. Cada
+  # superfície aceita só tokens da sua URL de recurso. MCP_ADMIN_ENABLED fica fora daqui: a chave de
+  # emergência do Super é o parâmetro (api/ e mcp/MCP_ADMIN_ENABLED=false, infra/README.md).
+  mcp:
+    image: ${ECR_REGISTRY:?}/space-sports/mcp:${IMAGE_TAG:?}
+    restart: unless-stopped
+    # Recebe o token dos usuários: disco só de leitura, sem capabilities e sem ganhar privilégio. O
+    # processo não grava nada (logs no stdout).
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    env_file:
+      - path: ./env/mcp.env
+        format: raw
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=64
+      API_URL: http://api:3333
+      WEB_URL: https://staging.spacesports.com.br
+      MCP_ISSUER: https://api-staging.spacesports.com.br/v1/auth
+      MCP_JWKS_URL: http://api:3333/v1/auth/jwks
+      MCP_SURFACES: user,admin
+      MCP_RESOURCE_URL: https://mcp-staging.spacesports.com.br/mcp
+      MCP_ADMIN_RESOURCE_URL: https://mcp-admin-staging.spacesports.com.br/mcp
+      MCP_INTERNAL_HOSTS: api
+    # 128 MB com heap de 64 MB, servindo os dois conectores: medido 62 MB parado e 91 MB de pico com 16
+    # clientes em paralelo (37 MB de folga), 100 MB com 32. Com 96/56 MB a folga era de 6 MB, e com
+    # heap de 48 MB, 4 clientes já esgotavam o heap e derrubavam o processo (README, seção Memória).
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3340/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+    mem_limit: 128m
     networks:
       - edge
 
@@ -196,7 +265,8 @@ services:
       - caddy-config:/config
 
 networks:
-  # Caddy, web e API. Tem saída para a internet: a API fala com Resend, S3 e Expo.
+  # Caddy, web, API e MCP. Tem saída para a internet: a API fala com Resend, S3 e Expo, e busca o
+  # documento de metadados (CIMD) dos clientes do MCP.
   edge:
   # Postgres e Redis, sem rota para fora. Só a API e os serviços de operação entram aqui.
   data:

@@ -31,7 +31,8 @@ env:
     text: ${SPACE_NAME}
 - assertVisible:
     id: "espaco-preco-hora"
-    text: "R$ 100,00"
+    # O valor sai com espaço não separável (Intl, "R$\u00a0100,00"); o texto do Maestro é regex.
+    text: "R\\$.100,00"
 - tapOn:
     id: "espaco-reservar"
 

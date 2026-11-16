@@ -39,6 +39,7 @@ const PARAMETERS = {
   ],
   postgres: [['/space-sports/staging/postgres/POSTGRES_PASSWORD', 'segredo']],
   seed: [['/space-sports/staging/seed/ALLOW_DEMO_SEED', 'true']],
+  mcp: [['/space-sports/staging/mcp/MCP_CONFIRMATION_SECRET', 'mcp+segredo/$x==']],
 };
 
 let workDir: string;
@@ -87,7 +88,7 @@ beforeEach(() => {
   stub(
     'aws',
     `case "$*" in
-  *get-parameters-by-path*) for g in api postgres seed; do
+  *get-parameters-by-path*) for g in api postgres seed mcp; do
       case "$*" in *"/staging/$g "*) cat "$PARAMETERS_DIR/$g.tsv";; esac
     done;;
   *get-login-password*) echo token;;
@@ -100,7 +101,7 @@ esac`,
     `case "$*" in
   login*) cat > /dev/null;;
   *"run --rm -T migrate"*) exit "\${MIGRATE_EXIT:-0}";;
-  *"up --detach --wait --wait-timeout 180 api web"*) exit "\${UP_EXIT:-0}";;
+  *"up --detach --wait --wait-timeout 180 api web mcp"*) exit "\${UP_EXIT:-0}";;
 esac`,
   );
 });
@@ -110,7 +111,7 @@ afterEach(() => {
 });
 
 describe('deploy.sh', () => {
-  it('sobe os dados, migra e só então troca API e web', () => {
+  it('sobe os dados, migra e só então troca API, web e MCP', () => {
     const result = deploy();
     expect(result.status, result.stderr).toBe(0);
 
@@ -119,7 +120,7 @@ describe('deploy.sh', () => {
       'aws sts assume-role',
       'docker compose up --detach --wait --wait-timeout 120 postgres redis',
       'docker compose run --rm -T migrate',
-      'docker compose up --detach --wait --wait-timeout 180 api web',
+      'docker compose up --detach --wait --wait-timeout 180 api web mcp',
       'docker compose up --detach --force-recreate caddy',
     ].map((call) => calls().indexOf(call));
     expect(order).not.toContain(-1);
@@ -163,7 +164,7 @@ describe('deploy.sh', () => {
     const result = deploy({ ASSUME_EXIT: '254' });
     expect(result.status, result.stderr).toBe(0);
     expect(result.stderr).toContain('upload de fotos vai falhar');
-    expect(calls()).toContain('up --detach --wait --wait-timeout 180 api web');
+    expect(calls()).toContain('up --detach --wait --wait-timeout 180 api web mcp');
     expect(existsSync(siteFile('.env'))).toBe(true);
   });
 
@@ -303,7 +304,7 @@ describe('passo que confere as imagens no workflow', () => {
   it('pula o que já está publicado', () => {
     const { status, outputs } = runStep('echo "{}"');
     expect(status).toBe(0);
-    expect(outputs).toBe('api=published\nweb=published\npostgres=published\n');
+    expect(outputs).toBe('api=published\nweb=published\nmcp=published\npostgres=published\n');
   });
 
   it('constrói só o que falta', () => {
@@ -311,7 +312,15 @@ describe('passo que confere as imagens no workflow', () => {
       `case "$*" in *space-sports/web*) ${awsError('ImageNotFoundException')};; esac`,
     );
     expect(status).toBe(0);
-    expect(outputs).toBe('api=published\nweb=missing\npostgres=published\n');
+    expect(outputs).toBe('api=published\nweb=missing\nmcp=published\npostgres=published\n');
+  });
+
+  it('confere a imagem do MCP pela tag do commit', () => {
+    const { status, outputs } = runStep(
+      `case "$*" in *space-sports/mcp*imageTag=abc123*) ${awsError('ImageNotFoundException')};; esac`,
+    );
+    expect(status).toBe(0);
+    expect(outputs).toBe('api=published\nweb=published\nmcp=missing\npostgres=published\n');
   });
 
   it.each(['AccessDeniedException', 'RepositoryNotFoundException', 'ExpiredTokenException'])(
@@ -340,6 +349,42 @@ describe('fetch-env.sh', () => {
     run('fetch-env.sh', []);
     expect(readFileSync(siteFile('env/api.env'), 'utf8')).not.toContain('ALLOW_DEMO_SEED');
     expect(readFileSync(siteFile('env/seed.env'), 'utf8')).toBe('ALLOW_DEMO_SEED=true\n');
+  });
+
+  it('o segredo do MCP vai só para o env do MCP', () => {
+    expect(run('fetch-env.sh', []).status).toBe(0);
+    expect(readFileSync(siteFile('env/mcp.env'), 'utf8')).toBe(
+      'MCP_CONFIRMATION_SECRET=mcp+segredo/$x==\n',
+    );
+    expect(statSync(siteFile('env/mcp.env')).mode & 0o777).toBe(0o600);
+    expect(readFileSync(siteFile('env/api.env'), 'utf8')).not.toContain('MCP_CONFIRMATION_SECRET');
+  });
+
+  it('a lista de clientes do conector do Super é opcional e vai só para o env da API', () => {
+    // Sem o parâmetro, a API recusa todo cliente no recurso do Super: o esperado até o 1º teste.
+    expect(run('fetch-env.sh', []).status).toBe(0);
+    expect(readFileSync(siteFile('env/api.env'), 'utf8')).not.toContain('MCP_ADMIN');
+
+    const clients = 'https://cliente.example/oauth/metadata.json,outro-cliente';
+    writeFileSync(
+      join(workDir, 'api.tsv'),
+      [...PARAMETERS.api, ['/space-sports/staging/api/MCP_ADMIN_ALLOWED_CLIENT_IDS', clients]]
+        .map((parameter) => `${parameter.join('\t')}\n`)
+        .join(''),
+    );
+    expect(run('fetch-env.sh', []).status).toBe(0);
+    expect(readFileSync(siteFile('env/api.env'), 'utf8')).toContain(
+      `MCP_ADMIN_ALLOWED_CLIENT_IDS=${clients}\n`,
+    );
+    expect(readFileSync(siteFile('env/mcp.env'), 'utf8')).not.toContain('MCP_ADMIN');
+  });
+
+  it('para se faltar o segredo do MCP, antes de qualquer contêiner', () => {
+    writeFileSync(join(workDir, 'mcp.tsv'), '');
+    const result = deploy();
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('/space-sports/staging/mcp/MCP_CONFIRMATION_SECRET');
+    expect(calls()).not.toContain('docker');
   });
 
   it('para com uma mensagem clara se faltar um parâmetro obrigatório', () => {

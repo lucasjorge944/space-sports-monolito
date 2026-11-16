@@ -33,8 +33,17 @@ import {
   reversePaymentSchema,
   spaceBookingsQuerySchema,
 } from '@space-sports/shared';
-import type { AuthUser, SpaceAccess } from '../auth/auth-context.js';
-import { ApiAuth, CurrentSpaceAccess, CurrentUser, SpacePermission } from '../auth/decorators.js';
+import type { AuthUser, OAuthAccess, SpaceAccess } from '../auth/auth-context.js';
+import {
+  ApiAuth,
+  CurrentOAuth,
+  CurrentSpaceAccess,
+  CurrentUser,
+  OAuthScopes,
+  OAuthView,
+  SpacePermission,
+} from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { ErrorResponseDto } from '../common/error-response.js';
 import { uuidParam } from '../common/uuid-param.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -76,9 +85,13 @@ const rejectParticipantPayable: PipeTransform = {
   },
 };
 
-/** Decisão 53: valores, pagamentos e convites da reserva só para quem registra pagamentos. */
-const seesMoney = (access: SpaceAccess | undefined) =>
-  canInSpace(access?.roles ?? [], 'payment.record');
+/**
+ * Decisão 53: valores, pagamentos e convites da reserva só para quem registra pagamentos. Pelo MCP
+ * (decisão 121), também só com `manage:finance:read` no token.
+ */
+const seesMoney = (access: SpaceAccess | undefined, oauth?: OAuthAccess) =>
+  canInSpace(access?.roles ?? [], 'payment.record') &&
+  (!oauth || oauth.scopes.includes('manage:finance:read'));
 
 /**
  * Gestão de reservas no painel do espaço (RF-BOOK-06, RF-BOOK-08, RF-PAY-01, RF-PAY-03). O
@@ -97,23 +110,31 @@ export class SpaceBookingsController {
   ) {}
 
   @Get('bookings')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.spaceBookingPage, mcpViews.spaceBookingPageWithMoney)
   @SpacePermission('schedule.view')
   @ApiOperation({
     operationId: 'listSpaceBookings',
     summary: 'Reservas do espaço com filtros',
     description:
-      'Decisão 53: sem `payment.record` (Professor), os valores e a situação do pagamento chegam nulos e o filtro `paymentStatus` é ignorado.',
+      'Decisão 53: sem `payment.record` (Professor), os valores e a situação do pagamento chegam nulos e o filtro `paymentStatus` é ignorado. `q` procura no nome do cliente (app ou balcão) e no telefone do balcão; com o token do MCP (decisões 121 e 122), só no nome, e os valores exigem também `manage:finance:read`.',
   })
   @ApiOkResponse({ type: SpaceBookingPageDto })
   list(
     @Param('spaceId') spaceId: string,
     @Query(new ZodValidationPipe(spaceBookingsQuerySchema)) query: SpaceBookingsQueryDto,
     @CurrentSpaceAccess() access: SpaceAccess | undefined,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
   ): Promise<SpaceBookingPageDto> {
-    return this.bookings.listForSpace(spaceId, query, { money: seesMoney(access) });
+    return this.bookings.listForSpace(spaceId, query, {
+      money: seesMoney(access, oauth),
+      contactSearch: !oauth,
+    });
   }
 
   @Get('bookings/:bookingId')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.spaceBookingDetail, mcpViews.spaceBookingDetailWithMoney)
   @SpacePermission('schedule.view')
   @ApiOperation({
     operationId: 'getSpaceBooking',
@@ -128,15 +149,17 @@ export class SpaceBookingsController {
     @Param('bookingId', uuidParam) bookingId: string,
     @CurrentUser() user: AuthUser,
     @CurrentSpaceAccess() access: SpaceAccess | undefined,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
   ): Promise<SpaceBookingDetailDto> {
-    // O Professor só visualiza a agenda: não vincula conta, então não consulta telefone.
-    const canLink = canInSpace(access?.roles ?? [], 'booking.create');
+    // O Professor só visualiza a agenda: não vincula conta, então não consulta telefone. Pelo
+    // MCP (só leitura) também não.
+    const canLink = !oauth && canInSpace(access?.roles ?? [], 'booking.create');
     const detail = await this.bookings.getForSpace(
       spaceId,
       bookingId,
       canLink ? user.id : undefined,
     );
-    return seesMoney(access) ? detail : detailWithoutMoney(detail);
+    return seesMoney(access, oauth) ? detail : detailWithoutMoney(detail);
   }
 
   @Post('bookings/:bookingId/confirm-link')
@@ -243,6 +266,8 @@ export class SpaceBookingsController {
   }
 
   @Get('court-blocks')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.courtBlocks)
   @SpacePermission('schedule.view')
   @ApiOperation({ operationId: 'listCourtBlocks', summary: 'Bloqueios no período' })
   @ApiOkResponse({ type: [CourtBlockDto] })
@@ -334,6 +359,8 @@ export class SpaceBookingsController {
   }
 
   @Get('receivables/today')
+  @OAuthScopes('manage:finance:read')
+  @OAuthView(mcpViews.receivablesToday)
   @SpacePermission('payment.record')
   @ApiOperation({
     operationId: 'getReceivablesToday',

@@ -145,6 +145,82 @@ describe('decideAccess', () => {
   });
 });
 
+describe('decideAccess · fluxo OAuth do MCP e conta', () => {
+  const signed = 'client_id=https%3A%2F%2Fclaude.ai%2Fcimd&sig=abc&ba_param=client_id&exp=1';
+
+  it('/entrar do fluxo OAuth fica para quem já tem sessão (Continuar como …), de qualquer perfil', () => {
+    for (const me of [player, manager, superOnly]) {
+      expect(decideAccess({ pathname: '/entrar', search: `?${signed}`, me })).toEqual({
+        type: 'allow',
+      });
+    }
+  });
+
+  it('/entrar sem os parâmetros do fluxo segue como antes', () => {
+    expect(decideAccess({ pathname: '/entrar', search: '?sig=abc', me: manager })).toEqual({
+      type: 'redirect',
+      to: '/painel',
+    });
+    expect(decideAccess({ pathname: '/entrar', search: '?client_id=x', me: player })).toEqual({
+      type: 'redirect',
+      to: '/sem-acesso',
+    });
+    expect(decideAccess({ pathname: '/entrar', search: `?${signed}`, me: null })).toEqual({
+      type: 'allow',
+    });
+  });
+
+  it('/autorizar libera quem tem sessão, mesmo sem vínculo com espaço', () => {
+    expect(decideAccess({ pathname: '/autorizar', search: `?${signed}`, me: player })).toEqual({
+      type: 'allow',
+    });
+  });
+
+  it('/autorizar sem sessão volta ao /entrar com a mesma query assinada', () => {
+    expect(decideAccess({ pathname: '/autorizar', search: `?${signed}`, me: null })).toEqual({
+      type: 'redirect',
+      to: `/entrar?${signed}`,
+    });
+  });
+
+  it('/conta/* pede só a sessão', () => {
+    expect(decideAccess({ pathname: '/conta/apps-conectados', me: player })).toEqual({
+      type: 'allow',
+    });
+    expect(decideAccess({ pathname: '/conta/apps-conectados', me: null })).toEqual({
+      type: 'redirect',
+      to: '/entrar?next=%2Fconta%2Fapps-conectados',
+    });
+  });
+
+  it('cadastro incompleto no /autorizar vai completar e volta com a mesma query (decisão 66)', () => {
+    const incomplete = { ...player, profile: { missing: ['phone'] } };
+    expect(decideAccess({ pathname: '/autorizar', search: `?${signed}`, me: incomplete })).toEqual({
+      type: 'redirect',
+      to: `/completar-cadastro?next=${encodeURIComponent(`/autorizar?${signed}`)}`,
+    });
+  });
+
+  it('cadastro incompleto no /entrar do fluxo também completa antes de "Continuar como"', () => {
+    const incomplete = { ...manager, profile: { missing: ['name', 'phone'] } };
+    expect(decideAccess({ pathname: '/entrar', search: `?${signed}`, me: incomplete })).toEqual({
+      type: 'redirect',
+      to: `/completar-cadastro?next=${encodeURIComponent(`/entrar?${signed}`)}`,
+    });
+  });
+
+  it('/conta/* segue liberado com o cadastro incompleto (sempre dá para desconectar um app)', () => {
+    const incomplete = { ...player, profile: { missing: ['phone'] } };
+    expect(decideAccess({ pathname: '/conta/apps-conectados', me: incomplete })).toEqual({
+      type: 'allow',
+    });
+  });
+
+  it('o retorno do completar cadastro à query assinada é aceito como next', () => {
+    expect(safeNextPath(`/autorizar?${signed}`)).toBe(`/autorizar?${signed}`);
+  });
+});
+
 describe('aboutYouPath', () => {
   it('guarda o destino seguinte, inclusive a confirmação do e-mail com o convite', () => {
     expect(aboutYouPath(undefined)).toBe('/cadastro/sobre-voce');

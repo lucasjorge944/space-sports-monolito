@@ -34,6 +34,7 @@ function build(env: Record<string, string>, sms: ConsoleSmsSender | null = null)
     redis,
     events: new InProcessDomainEvents(),
     storage: new DisabledPhotoStorage(),
+    cimdFetch: fetch,
   }).options;
 }
 

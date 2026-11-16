@@ -94,6 +94,11 @@ env:
 - assertVisible:
     id: "busca-filtros"
     text: "Filtros, 1 ativo"
+# A lista pode ter ficado rolada (o card conferido antes fica no meio): volta ao topo.
+- scrollUntilVisible:
+    element:
+      id: "explorar-titulo-lista"
+    direction: UP
 - assertVisible:
     id: "explorar-titulo-lista"
     text: "Resultados"

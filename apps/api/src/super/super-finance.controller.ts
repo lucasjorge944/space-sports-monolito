@@ -5,7 +5,8 @@ import { ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagg
 import { type FinanceQuery, type FinanceSummary, financeQuerySchema } from '@space-sports/shared';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser, SuperOnly } from '../auth/decorators.js';
+import { ApiAuth, CurrentUser, OAuthScopes, OAuthView, SuperOnly } from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi.js';
 import { FinanceService, periodOf } from './finance.service.js';
@@ -20,6 +21,8 @@ export class SuperFinanceController {
   constructor(private readonly service: FinanceService) {}
 
   @Get('summary')
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.financeSummary)
   @ApiOperation({
     operationId: 'superFinanceSummary',
     summary: 'Recebido por espaço, serviço e forma de pagamento',

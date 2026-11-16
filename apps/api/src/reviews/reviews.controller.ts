@@ -59,8 +59,18 @@ import {
   upsertReviewQuerySchema,
   upsertReviewSchema,
 } from '@space-sports/shared';
-import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser, Public, SpacePermission, SuperOnly } from '../auth/decorators.js';
+import type { AuthUser, OAuthAccess } from '../auth/auth-context.js';
+import {
+  ApiAuth,
+  CurrentOAuth,
+  CurrentUser,
+  OAuthScopes,
+  OAuthView,
+  Public,
+  SpacePermission,
+  SuperOnly,
+} from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { ErrorResponseDto } from '../common/error-response.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { optionalBody, ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -240,6 +250,8 @@ export class ManageReviewsController {
   constructor(private readonly service: ManageReviewsService) {}
 
   @Get()
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.manageReviews)
   @SpacePermission('review.view')
   @ApiOperation({
     operationId: 'listManageReviews',
@@ -253,11 +265,14 @@ export class ManageReviewsController {
   list(
     @Param('spaceId') spaceId: string,
     @Query(new ZodValidationPipe(manageReviewsQuerySchema)) query: ManageReviewsQuery,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
   ): Promise<ManageReviewPage> {
-    return this.service.list(spaceId, query);
+    return this.service.list(spaceId, query, { withoutPersonalComments: Boolean(oauth) });
   }
 
   @Get('summary')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.manageReviewSummary)
   @SpacePermission('review.view')
   @ApiOperation({
     operationId: 'getManageReviewSummary',
@@ -351,6 +366,8 @@ export class SuperReviewsController {
 
   // `reports` antes de `:reviewId`: as rotas são registradas na ordem da classe.
   @Get('reports')
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.superReviewReports)
   @ApiOperation({
     operationId: 'superListReviewReports',
     summary: 'Fila de denúncias de avaliações',
@@ -362,8 +379,9 @@ export class SuperReviewsController {
   @ApiBadRequestResponse(INVALID_CURSOR)
   reports(
     @Query(new ZodValidationPipe(superReviewReportsQuerySchema)) query: SuperReviewReportsQuery,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
   ): Promise<SuperReviewReportPage> {
-    return this.service.reports(query);
+    return this.service.reports(query, { withoutPersonalComments: Boolean(oauth) });
   }
 
   @Post('reports/:reportId/dismiss')
@@ -391,6 +409,8 @@ export class SuperReviewsController {
 
   // `summary` antes de `:reviewId`, pelo mesmo motivo.
   @Get('summary')
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.superReviewSummary)
   @ApiOperation({
     operationId: 'superGetSpaceReviewSummary',
     summary: 'Resumo das avaliações de um espaço (RF-REVIEW-07)',

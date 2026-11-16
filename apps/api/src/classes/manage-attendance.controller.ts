@@ -34,7 +34,15 @@ import {
   markPresenceSchema,
 } from '@space-sports/shared';
 import type { AuthUser, SpaceAccess } from '../auth/auth-context.js';
-import { ApiAuth, CurrentSpaceAccess, CurrentUser, SpacePermission } from '../auth/decorators.js';
+import {
+  ApiAuth,
+  CurrentSpaceAccess,
+  CurrentUser,
+  OAuthScopes,
+  OAuthView,
+  SpacePermission,
+} from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { ErrorResponseDto } from '../common/error-response.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -240,6 +248,8 @@ export class ManageAttendanceController {
   // Histórico e frequência
 
   @Get('class-attendances')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.classAttendances)
   @SpacePermission('classes.view')
   @ApiOperation({
     operationId: 'listClassAttendances',
@@ -264,6 +274,8 @@ export class ManageAttendanceController {
   }
 
   @Get('class-groups/:classGroupId/frequency')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.classGroupFrequency)
   @SpacePermission('classes.view')
   @ApiUuidParam('classGroupId')
   @ApiOperation({

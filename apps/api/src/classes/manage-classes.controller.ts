@@ -45,7 +45,15 @@ import {
   updatePlanSchema,
 } from '@space-sports/shared';
 import type { AuthUser, SpaceAccess } from '../auth/auth-context.js';
-import { ApiAuth, CurrentSpaceAccess, CurrentUser, SpacePermission } from '../auth/decorators.js';
+import {
+  ApiAuth,
+  CurrentSpaceAccess,
+  CurrentUser,
+  OAuthScopes,
+  OAuthView,
+  SpacePermission,
+} from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { ErrorResponseDto } from '../common/error-response.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -117,6 +125,8 @@ export class ManageClassesController {
   // Turmas fixas
 
   @Get('class-groups')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.classGroups)
   @SpacePermission('classes.view')
   @ApiOperation({
     operationId: 'listClassGroups',
@@ -157,6 +167,8 @@ export class ManageClassesController {
   }
 
   @Get('class-groups/:classGroupId')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.classGroupDetail)
   @SpacePermission('classes.view')
   @ApiUuidParam('classGroupId')
   @ApiOperation({
@@ -222,6 +234,8 @@ export class ManageClassesController {
   }
 
   @Get('class-session-conflicts')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.classConflicts)
   @SpacePermission('classes.view')
   @ApiOperation({
     operationId: 'listClassSessionConflicts',
@@ -243,6 +257,8 @@ export class ManageClassesController {
   // Sessões
 
   @Get('class-sessions')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.classSessions)
   @SpacePermission('classes.view')
   @ApiOperation({
     operationId: 'listClassSessions',
@@ -262,6 +278,8 @@ export class ManageClassesController {
   }
 
   @Get('class-sessions/:sessionId')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.classSessionDetail)
   @SpacePermission('classes.view')
   @ApiUuidParam('sessionId')
   @ApiOperation({
@@ -312,6 +330,8 @@ export class ManageClassesController {
   // Planos
 
   @Get('plans')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.plans)
   @SpacePermission('classes.view')
   @ApiOperation({ operationId: 'listPlans', summary: 'Planos do espaço (RF-CLASS-03)' })
   @ApiZodQuery(plansQuerySchema)
@@ -343,6 +363,8 @@ export class ManageClassesController {
   }
 
   @Get('plans/:planId')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.plan)
   @SpacePermission('classes.view')
   @ApiUuidParam('planId')
   @ApiOperation({ operationId: 'getPlan', summary: 'Detalhe do plano' })

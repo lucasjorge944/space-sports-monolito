@@ -17,6 +17,8 @@ export const users = {
   google: 'google@exemplo.com',
   /** Dona do Espaço Exemplo C, fora da vitrine (sem preço/hora), com 2 avaliações. */
   outside: 'cris@exemplo.com',
+  /** Jogadora sem telefone (decisão 66): completa o cadastro antes de conectar um assistente. */
+  incomplete: 'lia@exemplo.com',
 } as const;
 
 /** Abre a sessão direto pelo cookie (o valor é a chave do perfil na API simulada). */

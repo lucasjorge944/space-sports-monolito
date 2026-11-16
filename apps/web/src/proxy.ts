@@ -45,6 +45,8 @@ export const config = {
     '/painel/:path*',
     '/super/:path*',
     '/entrar',
+    '/autorizar',
+    '/conta/:path*',
     '/cadastro',
     '/cadastro/sobre-voce',
     '/esqueci-senha',

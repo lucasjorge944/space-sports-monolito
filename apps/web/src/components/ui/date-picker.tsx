@@ -6,6 +6,7 @@ import { CalendarDays } from 'lucide-react';
 import { useState } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { todayLocal } from '@/lib/format';
+import { PERIOD_RANGE } from '@/lib/period';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
 import { Calendar } from './calendar';
@@ -153,6 +154,9 @@ type DateRangePickerProps = {
   onValueChange: (range: DateRange) => void;
   fromLabel?: string;
   toLabel?: string;
+  /** Faixa aceita (`yyyy-MM-dd`). Padrão: a dos filtros de período da API; fora dela a data nem é enviada. */
+  min?: string;
+  max?: string;
   disabled?: boolean;
   className?: string;
 };
@@ -171,6 +175,8 @@ function DateRangePicker({
   onValueChange,
   fromLabel = 'De',
   toLabel = 'Até',
+  min = PERIOD_RANGE.min,
+  max = PERIOD_RANGE.max,
   disabled,
   className,
 }: DateRangePickerProps) {
@@ -178,8 +184,9 @@ function DateRangePicker({
   const [open, setOpen] = useState(false);
   // Primeiro clique no calendário: a outra ponta só é escolhida no segundo.
   const [start, setStart] = useState<string | null>(null);
-  const fromDraft = useDateDraft(from, (date) => onValueChange({ from: date, to }));
-  const toDraft = useDateDraft(to, (date) => onValueChange({ from, to: date }));
+  const allowed = (date: string) => date >= min && date <= max;
+  const fromDraft = useDateDraft(from, (date) => onValueChange({ from: date, to }), allowed);
+  const toDraft = useDateDraft(to, (date) => onValueChange({ from, to: date }), allowed);
 
   function pick(day: Date) {
     const date = fromDay(day);
@@ -262,6 +269,9 @@ function DateRangePicker({
           selected={{ from: toDay(shown.from), to: toDay(shown.to) }}
           defaultMonth={toDay(from) ?? toDay(to)}
           today={parseISO(todayLocal())}
+          disabled={[{ before: parseISO(min) }, { after: parseISO(max) }]}
+          startMonth={parseISO(min)}
+          endMonth={parseISO(max)}
           onSelect={(_, day) => pick(day)}
           classNames={{
             selected: '',

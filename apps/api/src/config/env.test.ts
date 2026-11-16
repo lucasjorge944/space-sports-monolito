@@ -36,6 +36,12 @@ describe('loadEnv', () => {
       S3_REGION: 'sa-east-1',
       S3_FORCE_PATH_STYLE: false,
       DEPLOY_ENV: 'production',
+      MCP_ENABLED: false,
+      MCP_RESOURCE_URL: 'http://localhost:3340/mcp',
+      MCP_DYNAMIC_CLIENT_REGISTRATION: false,
+      MCP_RATE_LIMIT_ENABLED: true,
+      MCP_ADMIN_ENABLED: false,
+      MCP_ADMIN_ALLOWED_CLIENT_IDS: [],
       PAYMENTS_PROVIDER: 'none',
       PAYMENTS_FAKE_WEBHOOK_URL: 'http://127.0.0.1:3333/v1/webhooks/payments/fake',
       PAYMENTS_FAKE_APPROVAL_DELAY_MS: 5000,
@@ -79,6 +85,77 @@ describe('loadEnv', () => {
     expect(() =>
       loadEnv({ ...valid, DEPLOY_ENV: 'production', PAYMENTS_PROVIDER: 'fake' }),
     ).toThrow(InvalidEnvError);
+  });
+
+  it('MCP_ENABLED: ligado em dev/test; na build de produção, só no staging com o recurso ou com true', () => {
+    const resource = 'https://mcp-staging.spacesports.com.br/mcp';
+    expect(loadEnv({ ...valid, NODE_ENV: 'development' }).MCP_ENABLED).toBe(true);
+    expect(loadEnv({ ...valid, NODE_ENV: 'test' }).MCP_ENABLED).toBe(true);
+    // Produção: desligado até a pendência 118, mesmo com o recurso configurado.
+    expect(loadEnv(valid).MCP_ENABLED).toBe(false);
+    expect(loadEnv({ ...valid, MCP_RESOURCE_URL: resource }).MCP_ENABLED).toBe(false);
+    // Staging: liga com o recurso; sem ele, sobe com o MCP desligado.
+    expect(loadEnv({ ...valid, DEPLOY_ENV: 'staging' }).MCP_ENABLED).toBe(false);
+    const staging = loadEnv({ ...valid, DEPLOY_ENV: 'staging', MCP_RESOURCE_URL: resource });
+    expect(staging.MCP_ENABLED).toBe(true);
+    expect(staging.MCP_RESOURCE_URL).toBe(resource);
+    // Ligar à mão em produção exige o recurso.
+    expect(() => loadEnv({ ...valid, MCP_ENABLED: 'true' })).toThrow(/MCP_RESOURCE_URL/);
+    expect(loadEnv({ ...valid, MCP_ENABLED: 'true', MCP_RESOURCE_URL: resource }).MCP_ENABLED).toBe(
+      true,
+    );
+    expect(loadEnv({ ...valid, NODE_ENV: 'test', MCP_ENABLED: 'false' }).MCP_ENABLED).toBe(false);
+  });
+
+  it('recurso do Super (decisão 123): sem URL não existe; chave ligada em dev/test e no staging com a URL', () => {
+    const admin = 'https://mcp-admin-staging.spacesports.com.br/mcp';
+    expect(loadEnv({ ...valid, NODE_ENV: 'test' }).MCP_ADMIN_RESOURCE_URL).toBeUndefined();
+    expect(loadEnv({ ...valid, NODE_ENV: 'development' }).MCP_ADMIN_ENABLED).toBe(true);
+    expect(loadEnv({ ...valid, NODE_ENV: 'test' }).MCP_ADMIN_ENABLED).toBe(true);
+    // Produção: desligado, mesmo com a URL; staging: ligado só com a URL.
+    expect(loadEnv({ ...valid, MCP_ADMIN_RESOURCE_URL: admin }).MCP_ADMIN_ENABLED).toBe(false);
+    expect(loadEnv({ ...valid, DEPLOY_ENV: 'staging' }).MCP_ADMIN_ENABLED).toBe(false);
+    expect(
+      loadEnv({ ...valid, DEPLOY_ENV: 'staging', MCP_ADMIN_RESOURCE_URL: admin }).MCP_ADMIN_ENABLED,
+    ).toBe(true);
+    expect(
+      loadEnv({ ...valid, NODE_ENV: 'test', MCP_ADMIN_ENABLED: 'false' }).MCP_ADMIN_ENABLED,
+    ).toBe(false);
+    // Lista de clientes separada por vírgula; vazia recusa todos.
+    expect(
+      loadEnv({
+        ...valid,
+        MCP_ADMIN_ALLOWED_CLIENT_IDS: 'https://a.example/c.json, https://b.example/c.json',
+      }).MCP_ADMIN_ALLOWED_CLIENT_IDS,
+    ).toEqual(['https://a.example/c.json', 'https://b.example/c.json']);
+    // Cada recurso tem a sua audiência.
+    expect(() =>
+      loadEnv({ ...valid, NODE_ENV: 'test', MCP_ADMIN_RESOURCE_URL: 'http://localhost:3340/mcp' }),
+    ).toThrow(/MCP_ADMIN_RESOURCE_URL/);
+    expect(() =>
+      loadEnv({
+        ...valid,
+        NODE_ENV: 'test',
+        MCP_ADMIN_RESOURCE_URL: 'http://mcp-admin.example/mcp',
+      }),
+    ).toThrow(/MCP_ADMIN_RESOURCE_URL/);
+  });
+
+  it('MCP_RESOURCE_URL: HTTPS (HTTP só em loopback), sem query, fragmento ou credenciais', () => {
+    const dev = { ...valid, NODE_ENV: 'development' };
+    expect(
+      loadEnv({ ...dev, MCP_RESOURCE_URL: 'http://127.0.0.1:3340/mcp' }).MCP_RESOURCE_URL,
+    ).toBe('http://127.0.0.1:3340/mcp');
+    for (const bad of [
+      'http://mcp.spacesports.com.br/mcp',
+      'https://mcp.spacesports.com.br/mcp?x=1',
+      'https://mcp.spacesports.com.br/mcp#a',
+      'https://u:p@mcp.spacesports.com.br/mcp',
+    ]) {
+      expect(() => loadEnv({ ...dev, MCP_RESOURCE_URL: bad })).toThrow(/MCP_RESOURCE_URL/);
+    }
+    expect(loadEnv({ ...dev, NODE_ENV: 'test' }).MCP_RATE_LIMIT_ENABLED).toBe(false);
+    expect(loadEnv(dev).MCP_RATE_LIMIT_ENABLED).toBe(true);
   });
 
   it('JOBS_ENABLED: ligado fora de test, desligado em test, e a variável vence', () => {

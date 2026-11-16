@@ -7,6 +7,7 @@ import {
   useUpdateMyProfile,
 } from '@space-sports/api-client';
 import { useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { FormError } from '@/components/auth/form-alert';
@@ -23,6 +24,7 @@ import {
   validateBirthDate,
   validatePhone,
 } from '@/lib/account/profile';
+import { CONNECTED_APPS_PATH } from '@/lib/auth/oauth';
 import { useMe } from '@/lib/auth/use-me';
 import { collectErrors, type FieldErrors, validateName } from '@/lib/auth/validation';
 import { apiErrorMessage } from '@/lib/painel/errors';
@@ -54,6 +56,7 @@ export function ProfileView() {
           <PersonalCard me={me.data} />
           <EmailCard me={me.data} />
           <PasswordCard />
+          <ConnectedAppsCard />
         </>
       )}
     </div>
@@ -164,6 +167,26 @@ function PersonalCard({ me }: { me: MeResponseDto }) {
             ) : null}
           </div>
         </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Atalho para "Apps conectados" (RF-MCP-05), que fica em `/conta/apps-conectados`, fora do painel. */
+function ConnectedAppsCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Apps conectados</CardTitle>
+        <CardDescription>
+          Assistentes de IA que você autorizou a usar o Space Sports em seu nome. Veja o que cada um
+          pode fazer e desconecte quando quiser.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild variant="outline" className="w-fit">
+          <Link href={CONNECTED_APPS_PATH}>Gerenciar apps conectados</Link>
+        </Button>
       </CardContent>
     </Card>
   );

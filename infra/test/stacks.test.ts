@@ -138,16 +138,34 @@ describe('instância', () => {
     expect(JSON.stringify(instance?.DependsOn)).toContain('DefaultRoute');
   });
 
-  it('tem Elastic IP e os registros A de staging e api-staging', () => {
+  it('tem Elastic IP e os registros A de staging, api-staging, mcp-staging e mcp-admin-staging', () => {
     staging.resourceCountIs('AWS::EC2::EIP', 1);
     staging.resourceCountIs('AWS::EC2::EIPAssociation', 1);
-    staging.resourceCountIs('AWS::Route53::RecordSet', 2);
-    for (const name of ['staging.spacesports.com.br.', 'api-staging.spacesports.com.br.']) {
+    staging.resourceCountIs('AWS::Route53::RecordSet', 4);
+    for (const name of [
+      'staging.spacesports.com.br.',
+      'api-staging.spacesports.com.br.',
+      'mcp-staging.spacesports.com.br.',
+      'mcp-admin-staging.spacesports.com.br.',
+    ]) {
       staging.hasResourceProperties('AWS::Route53::RecordSet', {
         Name: name,
         Type: 'A',
         ResourceRecords: [{ 'Fn::GetAtt': [Match.anyValue(), 'PublicIp'] }],
       });
+    }
+  });
+});
+
+describe('imagens no ECR', () => {
+  it('a instância puxa e o deploy publica as quatro imagens, inclusive a do MCP', () => {
+    const repositories = Object.keys(shared.findResources('AWS::ECR::Repository'));
+    expect(repositories.some((id) => id.startsWith('mcpRepository'))).toBe(true);
+    // As políticas do staging importam o ARN de cada repositório pelo export da stack compartilhada,
+    // e o nome do export leva o id lógico do repositório.
+    for (const role of ['ec2', 'oidc'] as const) {
+      const statements = JSON.stringify(statementsOf(roleLogicalId(staging, role)));
+      for (const id of repositories) expect(statements, `${role} ${id}`).toContain(id);
     }
   });
 });
@@ -253,8 +271,8 @@ describe('recursos compartilhados', () => {
   });
 
   it('cria os repositórios com tag imutável e lifecycle de poucas imagens', () => {
-    shared.resourceCountIs('AWS::ECR::Repository', 3);
-    for (const name of ['api', 'web', 'postgres']) {
+    shared.resourceCountIs('AWS::ECR::Repository', 4);
+    for (const name of ['api', 'web', 'postgres', 'mcp']) {
       shared.hasResourceProperties('AWS::ECR::Repository', {
         RepositoryName: `space-sports/${name}`,
         ImageTagMutability: 'IMMUTABLE',

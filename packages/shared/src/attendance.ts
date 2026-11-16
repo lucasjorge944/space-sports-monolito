@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { localDateSchema, oneOrMany } from './booking';
+import { localDateSchema, oneOrMany, periodDateSchema } from './booking';
 import {
   attendanceStatusSchema,
   classSessionSchema,
@@ -47,7 +47,8 @@ export type PresenceStatus = z.infer<typeof presenceStatusSchema>;
 const isoString = z.iso.datetime();
 const userRef = z.object({ userId: z.uuid(), name: z.string(), avatarUrl: z.string().nullable() });
 
-const dateRangeFields = { from: localDateSchema.optional(), to: localDateSchema.optional() };
+/** `from`/`to` de query: datas locais de 2000-01-01 a 2100-12-31 (`periodDateSchema`). */
+const dateRangeFields = { from: periodDateSchema.optional(), to: periodDateSchema.optional() };
 const toAfterFrom = (v: { from?: string; to?: string }) => !v.from || !v.to || v.to >= v.from;
 const toAfterFromError = { message: '`to` não pode ser anterior a `from`.', path: ['to'] };
 

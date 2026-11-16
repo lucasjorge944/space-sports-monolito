@@ -4,6 +4,7 @@ import {
   GraduationCap,
   Heart,
   KeyRound,
+  Plug,
   Receipt,
   SlidersHorizontal,
   Star,
@@ -88,6 +89,12 @@ export default function PerfilScreen() {
             label="Minhas avaliações"
             testID="perfil-minhas-avaliacoes"
             onPress={() => router.push('/minhas-avaliacoes')}
+          />
+          <MenuRow
+            icon={icon(Plug)}
+            label="Apps conectados"
+            testID="perfil-apps-conectados"
+            onPress={() => router.push('/apps-conectados')}
           />
           <MenuRow
             icon={icon(SlidersHorizontal)}

@@ -4,6 +4,8 @@ import { cdkContext, parseYaml, readInfraFile, synthesize } from './helpers.js';
 const { region, domainName, github, staging } = cdkContext.spaceSports;
 const webHost = `${staging.webSubdomain}.${domainName}`;
 const apiHost = `${staging.apiSubdomain}.${domainName}`;
+const mcpHost = `${staging.mcpSubdomain}.${domainName}`;
+const mcpAdminHost = `${staging.mcpAdminSubdomain}.${domainName}`;
 
 /** Hosts sob o domínio configurado e, para detectar um domínio antigo, sob qualquer `.com.br`. */
 const hostsIn = (text: string) => new Set(text.match(/[\w.-]+\.com\.br/g));
@@ -14,7 +16,7 @@ const hostsIn = (text: string) => new Set(text.match(/[\w.-]+\.com\.br/g));
  */
 describe('valores repetidos fora do cdk.json', () => {
   describe('compose.yml', () => {
-    const { api, web } = parseYaml('staging/compose.yml').services;
+    const { api, web, mcp } = parseYaml('staging/compose.yml').services;
 
     it('usa os domínios configurados', () => {
       expect(api.environment.BETTER_AUTH_URL).toBe(`https://${apiHost}`);
@@ -24,8 +26,20 @@ describe('valores repetidos fora do cdk.json', () => {
       expect(api.environment.SMTP_FROM).toContain(`@${domainName}>`);
     });
 
+    it('o MCP é o recurso do domínio configurado, e o emissor é a API', () => {
+      expect(api.environment.MCP_RESOURCE_URL).toBe(`https://${mcpHost}/mcp`);
+      expect(mcp.environment.MCP_RESOURCE_URL).toBe(`https://${mcpHost}/mcp`);
+      expect(mcp.environment.MCP_ISSUER).toBe(`https://${apiHost}/v1/auth`);
+      expect(mcp.environment.WEB_URL).toBe(`https://${webHost}`);
+    });
+
+    it('o conector do Super é o recurso do subdomínio configurado, na API e no MCP', () => {
+      expect(api.environment.MCP_ADMIN_RESOURCE_URL).toBe(`https://${mcpAdminHost}/mcp`);
+      expect(mcp.environment.MCP_ADMIN_RESOURCE_URL).toBe(`https://${mcpAdminHost}/mcp`);
+    });
+
     it('não cita outro domínio', () => {
-      const allowed = new Set([webHost, apiHost, domainName]);
+      const allowed = new Set([webHost, apiHost, mcpHost, mcpAdminHost, domainName]);
       expect(hostsIn(readInfraFile('staging/compose.yml'))).toEqual(allowed);
     });
   });
@@ -80,11 +94,21 @@ describe('valores repetidos fora do cdk.json', () => {
     });
   });
 
-  it('o Caddyfile atende exatamente os dois domínios', () => {
+  it('o Caddyfile atende exatamente os quatro domínios', () => {
     const caddyfile = readInfraFile('staging/Caddyfile');
-    expect(hostsIn(caddyfile)).toEqual(new Set([webHost, apiHost]));
-    expect(caddyfile).toMatch(new RegExp(`^${webHost.replaceAll('.', '\\.')} \\{`, 'm'));
-    expect(caddyfile).toMatch(new RegExp(`^${apiHost.replaceAll('.', '\\.')} \\{`, 'm'));
+    expect(hostsIn(caddyfile)).toEqual(new Set([webHost, apiHost, mcpHost, mcpAdminHost]));
+    for (const host of [webHost, apiHost, mcpHost, mcpAdminHost]) {
+      expect(caddyfile).toMatch(new RegExp(`^${host.replaceAll('.', '\\.')} \\{`, 'm'));
+    }
+  });
+
+  it('a stack cria o registro DNS de cada domínio do Caddyfile', () => {
+    const names = Object.values(synthesize().staging.findResources('AWS::Route53::RecordSet')).map(
+      (record) => record.Properties.Name,
+    );
+    expect(names.sort()).toEqual(
+      [apiHost, mcpHost, mcpAdminHost, webHost].map((host) => `${host}.`).sort(),
+    );
   });
 
   it('o fetch-env.sh lê o prefixo configurado', () => {

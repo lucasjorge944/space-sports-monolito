@@ -22,6 +22,18 @@ test.describe('agenda e reservas', () => {
     await expect(detail.getByRole('button', { name: 'Registrar pagamento' })).toBeVisible();
   });
 
+  test('data fora da faixa da API na URL é ignorada e a agenda abre hoje', async ({
+    page,
+    context,
+  }) => {
+    await loginAs(context, 'manager');
+    for (const query of ['data=9999-12-31', 'data=9999-12-31&visao=semana', 'data=2026-02-30']) {
+      await page.goto(`/painel/agenda?${query}`);
+      await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
+      await expect(page.getByTestId('agenda-booking'), query).toContainText('Carlos Souza');
+    }
+  });
+
   test('reserva de balcão envia horário em UTC e telefone em E.164', async ({
     page,
     context,

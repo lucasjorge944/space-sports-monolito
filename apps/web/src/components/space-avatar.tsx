@@ -12,6 +12,8 @@ type SpaceAvatarProps = {
   /** A logo está ao lado do nome do espaço: a imagem é decorativa (alt vazio) para o leitor de tela não repetir o nome. */
   decorative?: boolean;
   className?: string;
+  /** Política de referrer da imagem; logo de origem externa (cliente OAuth) manda `no-referrer`. */
+  referrerPolicy?: React.ImgHTMLAttributes<HTMLImageElement>['referrerPolicy'];
 };
 
 /** Logo do espaço em círculo; sem logo (ou se ela não carregar), as iniciais do nome. */
@@ -21,6 +23,7 @@ export function SpaceAvatar({
   size = 32,
   decorative = false,
   className,
+  referrerPolicy,
 }: SpaceAvatarProps) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const showImage = Boolean(logoUrl) && failedUrl !== logoUrl;
@@ -41,6 +44,7 @@ export function SpaceAvatar({
           alt={decorative ? '' : `Logo de ${name}`}
           width={size}
           height={size}
+          referrerPolicy={referrerPolicy}
           className="size-full object-cover"
           onError={() => setFailedUrl(logoUrl ?? null)}
         />

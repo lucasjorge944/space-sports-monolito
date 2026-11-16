@@ -23,7 +23,7 @@ Configuração em `app.config.ts` (app `br.com.spacesports.app`, versão `0.1.0`
 
 O `app.config.ts` lê `EAS_PROJECT_ID`, `EXPO_OWNER`, `GOOGLE_MAPS_ANDROID_API_KEY` e `GOOGLE_SERVICES_JSON` de `process.env`; vazias, as chaves correspondentes ficam fora da config. De onde elas vêm:
 
-- **Build na nuvem (worker do EAS):** das variáveis do EAS do *environment* do perfil (`preview` ou `production`, em expo.dev → projeto → Environment variables ou `eas env:set`). O `env` do `eas.json` só define a `EXPO_PUBLIC_API_URL`.
+- **Build na nuvem (worker do EAS):** das variáveis do EAS do *environment* do perfil (`preview` ou `production`, em expo.dev → projeto → Environment variables ou `eas env:set`). O `env` do `eas.json` só define a `EXPO_PUBLIC_API_URL` e a `EXPO_PUBLIC_MCP_URL`.
 - **`npx expo config`, `expo run:*` e o eas-cli na sua máquina:** precisam estar **exportadas no shell** (`export EAS_PROJECT_ID=...`). O eas-cli **não lê o `.env`**: ele avalia o `app.config.ts` só com o ambiente do shell e as variáveis do EAS que puder baixar (plain text e sensitive), e precisa do `EAS_PROJECT_ID` antes disso para achar o projeto. O `.env.example` só lista os nomes.
 - **GitHub Actions:** `EAS_PROJECT_ID` e `EXPO_OWNER` como *variables* do repositório; `EXPO_TOKEN` como *secret*.
 
@@ -75,6 +75,7 @@ No iOS o push usa a chave APNs, que o eas-cli cria junto com as credenciais do b
 | `production` | lojas, `autoIncrement` | AAB | `https://api.spacesports.com.br` | `production` |
 
 - `EXPO_PUBLIC_API_URL` é a origem da API, sem `/v1` (o cliente já traz o prefixo).
+- `EXPO_PUBLIC_MCP_URL` é a URL do servidor MCP (com `/mcp`) que "Apps conectados" mostra para copiar: `preview` usa `https://mcp-staging.spacesports.com.br/mcp`, `production` `https://mcp.spacesports.com.br/mcp` (também o padrão se faltar) e o dev local, `http://localhost:3340/mcp`.
 - Não há perfil `development`: o `expo-dev-client` não está instalado.
 - Os perfis têm `channel`, mas o `expo-updates` ainda não está instalado: o eas-cli só avisa (no modo interativo pergunta se quer instalar; responda **não** até decidirmos usar o EAS Update).
 - Os dois perfis fixam Node (`22.23.4`, o mesmo do `.nvmrc`) e pnpm (`12.15.0`, o do `packageManager`). Os valores ficam repetidos em cada perfil de propósito: o eas-cli não tem perfil abstrato, e um perfil `base` para o `extends` poderia ser usado sozinho em `eas build --profile base`. Ao trocar a versão, mude nos dois e no `.nvmrc`.

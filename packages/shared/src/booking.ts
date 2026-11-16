@@ -62,6 +62,21 @@ export type RecordablePayableType = z.infer<typeof recordablePayableTypeSchema>;
 
 /** Data local do espaço (`YYYY-MM-DD`). */
 export const localDateSchema = z.iso.date();
+
+/** Menor e maior data aceitas nos filtros de período (`from`/`to` das queries), inclusive. */
+export const PERIOD_MIN_DATE = '2000-01-01';
+export const PERIOD_MAX_DATE = '2100-12-31';
+
+/**
+ * Data local (`YYYY-MM-DD`) de filtro de período (`from`/`to` de query, `date` da
+ * disponibilidade): de 2000-01-01 a 2100-12-31, senão 400 `VALIDATION_ERROR` (BUG-MCP2-2). O
+ * formato aceitaria de 0000 a 9999, mas as contas de calendário (`addDays`) não passam de 9999, e
+ * nenhum dado existe tão longe. Não serve a datas que não são filtro (nascimento, por exemplo).
+ */
+export const periodDateSchema = localDateSchema.refine(
+  (date) => date >= PERIOD_MIN_DATE && date <= PERIOD_MAX_DATE,
+  { message: 'Use uma data entre 01/01/2000 e 31/12/2100.' },
+);
 /** Instante ISO 8601 com fuso (ex.: `2026-11-02T13:00:00Z` ou `2026-11-02T10:00:00-03:00`). */
 export const instantSchema = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
 
@@ -77,7 +92,7 @@ export const durationMinSchema = z.coerce
 
 /** GET /v1/spaces/:spaceId/availability (RF-BOOK-01, RF-BOOK-02). */
 export const availabilityQuerySchema = z.object({
-  date: localDateSchema,
+  date: periodDateSchema,
   durationMin: durationMinSchema,
   sportId: z.uuid(),
   courtId: z.uuid().optional(),

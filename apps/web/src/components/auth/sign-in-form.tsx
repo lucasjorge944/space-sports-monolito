@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { authClient } from '@/lib/auth/client';
 import { authErrorMessage, thrownErrorMessage } from '@/lib/auth/errors';
 import { LOGIN_PATH } from '@/lib/auth/navigation';
+import { oauthLoginPath, redirectTarget } from '@/lib/auth/oauth';
 import type { SocialProvider } from '@/lib/auth/providers';
 import {
   collectErrors,
@@ -29,14 +30,22 @@ type SignInFormProps = {
   initialError?: string | undefined;
   /** Aviso vindo da URL (ex.: senha redefinida). */
   notice?: string | undefined;
+  /**
+   * Query assinada do fluxo OAuth do MCP (sem o `?`), quando o `/entrar` veio do authorize. Depois do
+   * login a pessoa volta ao fluxo (`/autorizar`) em vez de ir ao painel.
+   */
+  oauthQuery?: string | undefined;
 };
 
-export function SignInForm({ providers, next, initialError, notice }: SignInFormProps) {
+export function SignInForm({ providers, next, initialError, notice, oauthQuery }: SignInFormProps) {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<'email' | 'password'>>();
   const [formError, setFormError] = useState(initialError);
   const [pending, setPending] = useState(false);
   const invite = useLockedEmail(next);
-  const withNext = next ? `?next=${encodeURIComponent(next)}` : '';
+  // No fluxo OAuth, "voltar" é a própria página de entrada com a query assinada (login social,
+  // cadastro): lá a sessão aparece como "Continuar como …".
+  const returnTo = oauthQuery ? oauthLoginPath(oauthQuery) : next;
+  const withNext = returnTo ? `?next=${encodeURIComponent(returnTo)}` : '';
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,10 +63,19 @@ export function SignInForm({ providers, next, initialError, notice }: SignInForm
 
     setPending(true);
     try {
-      const { error } = await authClient.signIn.email({ email: normalizeEmail(email), password });
+      const { data, error } = await authClient.signIn.email({
+        email: normalizeEmail(email),
+        password,
+      });
       if (error) {
         setFormError(authErrorMessage(error));
         setPending(false);
+        return;
+      }
+      if (oauthQuery) {
+        // O plugin do OAuth manda o `oauth_query` e a API responde `{ redirect, url }`: o
+        // `/autorizar` com a query nova, ou direto o cliente se ele já foi autorizado.
+        window.location.assign(redirectTarget(data) ?? oauthLoginPath(oauthQuery));
         return;
       }
       // Navegação completa: o `proxy.ts` decide o destino pelo perfil quando não há `next`.
@@ -71,7 +89,13 @@ export function SignInForm({ providers, next, initialError, notice }: SignInForm
   return (
     <AuthCard
       title="Entrar"
-      description={invite.email ? 'Entre com a conta do convite.' : 'Use a conta do Space Sports.'}
+      description={
+        oauthQuery
+          ? 'Entre com a sua conta para conectar o assistente ao Space Sports.'
+          : invite.email
+            ? 'Entre com a conta do convite.'
+            : 'Use a conta do Space Sports.'
+      }
       footer={
         <p>
           Ainda não tem conta?{' '}
@@ -82,7 +106,7 @@ export function SignInForm({ providers, next, initialError, notice }: SignInForm
       }
     >
       {notice ? <FormNotice>{notice}</FormNotice> : null}
-      <SocialButtons providers={providers} next={next} />
+      <SocialButtons providers={providers} next={returnTo} />
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <FormError message={formError} />
         <EmailField error={fieldErrors?.email} locked={invite.email} loading={invite.loading} />

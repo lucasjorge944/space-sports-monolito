@@ -20,7 +20,8 @@ import {
 } from '@space-sports/shared';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser, SuperOnly } from '../auth/decorators.js';
+import { ApiAuth, CurrentUser, OAuthScopes, OAuthView, SuperOnly } from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiUuidParam, ApiZodBody, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi.js';
@@ -131,6 +132,8 @@ export class SuperOnlinePaymentsController {
   }
 
   @Get('revenue')
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.platformRevenue)
   @ApiOperation({
     operationId: 'superGetPlatformRevenue',
     summary: 'Receita da plataforma',
@@ -169,6 +172,8 @@ export class SuperOnlinePaymentsController {
   }
 
   @Get('reports/monthly')
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.monthlyFeeReport)
   @ApiOperation({
     operationId: 'superGetMonthlyFeeReport',
     summary: 'Relatório mensal de taxas por espaço (NFS-e)',

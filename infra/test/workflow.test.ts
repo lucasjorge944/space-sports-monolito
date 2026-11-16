@@ -55,7 +55,7 @@ describe('deploy-staging.yml', () => {
   it('constrói as imagens em arm64 em runner nativo, sem QEMU', () => {
     expect(deploy['runs-on']).toBe('ubuntu-24.04-arm');
     const builds = steps.filter((step) => step.uses?.startsWith('docker/build-push-action'));
-    expect(builds).toHaveLength(3);
+    expect(builds).toHaveLength(4);
     for (const build of builds) expect(build.with?.platforms).toBe('linux/arm64');
     expect(steps.some((step) => step.uses?.startsWith('docker/setup-qemu-action'))).toBe(false);
   });
@@ -64,6 +64,18 @@ describe('deploy-staging.yml', () => {
     expect(deploy.env.IMAGE_TAG).toContain('github.event.workflow_run.head_sha');
     const checkout = steps.find((step) => step.uses?.startsWith('actions/checkout'));
     expect(checkout?.with?.ref).toContain('env.IMAGE_TAG');
+  });
+
+  it('publica a imagem do MCP com a tag do commit, só quando falta', () => {
+    const mcp = steps.find((step) => step.with?.file === 'apps/mcp/Dockerfile') as
+      | { if?: string; with?: Record<string, string> }
+      | undefined;
+    expect(mcp?.if).toBe("steps.images.outputs.mcp == 'missing'");
+    expect(mcp?.with?.tags).toBe(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: expressão do GitHub Actions, não do JS.
+      '${{ steps.ecr.outputs.registry }}/space-sports/mcp:${{ env.IMAGE_TAG }}',
+    );
+    expect(mcp?.with?.context).toBe('.');
   });
 
   it('fixa o rewrite do web no serviço da API do compose', () => {

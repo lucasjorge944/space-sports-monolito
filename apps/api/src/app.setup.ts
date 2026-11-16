@@ -1,7 +1,8 @@
-import type { INestApplication, NestApplicationOptions } from '@nestjs/common';
+import { type INestApplication, type NestApplicationOptions, RequestMethod } from '@nestjs/common';
 import { DocumentBuilder, type OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 import { SUPPORT_MODE_HEADER, SUPPORT_SESSION_HEADER } from '@space-sports/shared';
 import { Logger } from 'nestjs-pino';
+import { OAUTH_SERVER_METADATA_PATH } from './auth/auth.controller.js';
 import { AUTH_OPENAPI } from './auth/auth.tokens.js';
 import { mergeAuthOpenApi } from './auth/auth-openapi.js';
 import { ErrorResponseDto } from './common/error-response.js';
@@ -50,7 +51,10 @@ export function operationIdFactory(controllerKey: string, methodKey: string): st
 export function setupApp(app: INestApplication): INestApplication {
   app.useLogger(app.get(Logger));
   app.getHttpAdapter().getInstance().disable('x-powered-by');
-  app.setGlobalPrefix(API_PREFIX);
+  // O metadata OAuth (RFC 8414) fica na raiz, onde os clientes MCP o procuram.
+  app.setGlobalPrefix(API_PREFIX, {
+    exclude: [{ path: OAUTH_SERVER_METADATA_PATH, method: RequestMethod.GET }],
+  });
   app.enableShutdownHooks();
 
   // CORS só para as origens web confiáveis (os esquemas do app, como spacesports://, ficam de fora).

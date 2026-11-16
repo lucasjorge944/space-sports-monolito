@@ -18,6 +18,60 @@ const commaList = z
 
 const bothOrNone = (a: string, b: string) => (env: Record<string, unknown>) => !env[a] === !env[b];
 
+/** Recurso MCP de desenvolvimento (porta padrão do `apps/mcp`). */
+const DEV_MCP_RESOURCE_URL = 'http://localhost:3340/mcp';
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * URL canônica do recurso MCP (RFC 8707/9728): HTTPS (HTTP só em loopback, para dev), sem query,
+ * fragmento ou credenciais, como exige o plugin `mcp` do Better Auth.
+ */
+const mcpResourceUrl = z.url({ protocol: /^https?$/ }).refine(
+  (value) => {
+    const url = new URL(value);
+    return (
+      !value.includes('?') &&
+      !value.includes('#') &&
+      !url.username &&
+      !url.password &&
+      (url.protocol === 'https:' || LOOPBACK_HOSTS.has(url.hostname))
+    );
+  },
+  { message: 'Use HTTPS (HTTP só em localhost), sem query, fragmento ou credenciais.' },
+);
+
+/**
+ * MCP ligado. A variável vence; sem ela: ligado em dev e test; na build de produção, só no staging
+ * com MCP_RESOURCE_URL definida (sem ela a subida não quebra, o MCP fica desligado). A produção só
+ * liga com MCP_ENABLED=true, depois da pendência 118 (política de privacidade).
+ */
+function mcpEnabledOf(env: {
+  MCP_ENABLED?: boolean | undefined;
+  MCP_RESOURCE_URL?: string | undefined;
+  NODE_ENV: string;
+  DEPLOY_ENV: string;
+}): boolean {
+  if (env.MCP_ENABLED !== undefined) return env.MCP_ENABLED;
+  if (env.NODE_ENV !== 'production') return true;
+  return env.DEPLOY_ENV === 'staging' && Boolean(env.MCP_RESOURCE_URL);
+}
+
+/**
+ * Recurso do Super ligado (decisão 123). A variável vence; sem ela: ligado em dev e test; na build de
+ * produção, só no staging com MCP_ADMIN_RESOURCE_URL definida; na produção, desligado. O recurso só
+ * existe com MCP_ADMIN_RESOURCE_URL, e `MCP_ENABLED=false` desliga os dois recursos.
+ */
+function mcpAdminEnabledOf(env: {
+  MCP_ADMIN_ENABLED?: boolean | undefined;
+  MCP_ADMIN_RESOURCE_URL?: string | undefined;
+  NODE_ENV: string;
+  DEPLOY_ENV: string;
+}): boolean {
+  if (env.MCP_ADMIN_ENABLED !== undefined) return env.MCP_ADMIN_ENABLED;
+  if (env.NODE_ENV !== 'production') return true;
+  return env.DEPLOY_ENV === 'staging' && Boolean(env.MCP_ADMIN_RESOURCE_URL);
+}
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']),
@@ -133,6 +187,51 @@ export const envSchema = z
      */
     DEPLOY_ENV: z.enum(['production', 'staging']).default('production'),
 
+    // Servidor MCP (docs/14-mcp.md; decisões 110 a 117).
+    /**
+     * Chave de emergência do MCP: `false` recusa todo token OAuth do MCP (503 `MCP_DISABLED`) e
+     * desliga as rotas OAuth do Better Auth (`/v1/auth/oauth2/*` e o metadata), sem afetar app e
+     * web. Padrão: ligado em dev/test e no staging com MCP_RESOURCE_URL; na produção
+     * (`DEPLOY_ENV=production`) só com `true`, depois da pendência 118 (política de privacidade).
+     */
+    MCP_ENABLED: optional(z.stringbool()),
+    /**
+     * URL canônica do servidor MCP (`aud` dos tokens): staging
+     * `https://mcp-staging.spacesports.com.br/mcp`, produção `https://mcp.spacesports.com.br/mcp`.
+     * Obrigatória com NODE_ENV=production e MCP_ENABLED=true; em dev, `http://localhost:3340/mcp`.
+     */
+    MCP_RESOURCE_URL: optional(mcpResourceUrl),
+    /**
+     * Registro dinâmico de clientes (RFC 7591), só para clientes que não suportam o Client ID
+     * Metadata Document. Desligado por padrão; ligado, aceita só `redirect_uri` HTTPS ou loopback,
+     * com rate limit por IP.
+     */
+    MCP_DYNAMIC_CLIENT_REGISTRATION: z.stringbool().default(false),
+    /**
+     * Limites por usuário do token do MCP (RN-MCP-03): leituras 60/min, escritas 10 a cada 10 min,
+     * no Redis. Padrão: ligado fora de NODE_ENV=test.
+     */
+    MCP_RATE_LIMIT_ENABLED: optional(z.stringbool()),
+    /**
+     * URL canônica do conector "Space Sports · Plataforma" (decisão 120; `aud` dos tokens do Super):
+     * staging `https://mcp-admin-staging.spacesports.com.br/mcp`. Sem ela, o recurso do Super não
+     * existe (o authorize com esse `resource` responde `invalid_target`). Precisa ser diferente de
+     * MCP_RESOURCE_URL.
+     */
+    MCP_ADMIN_RESOURCE_URL: optional(mcpResourceUrl),
+    /**
+     * Chave de emergência só do recurso do Super: `false` responde 503 `MCP_DISABLED` ao token, ao
+     * authorize e à emissão desse recurso, sem afetar o do jogador. Padrão: ligado em dev/test; no
+     * staging, ligado com MCP_ADMIN_RESOURCE_URL; na produção, desligado.
+     */
+    MCP_ADMIN_ENABLED: optional(z.stringbool()),
+    /**
+     * Clientes OAuth (`client_id`, no CIMD a URL do documento) que podem pedir o recurso do Super,
+     * separados por vírgula. Vazia (padrão) recusa todos; o authorize registra no log o `client_id`
+     * recusado.
+     */
+    MCP_ADMIN_ALLOWED_CLIENT_IDS: commaList,
+
     // Pagamento online (decisões 80 a 96; docs/13-pagamentos-online.md).
     /**
      * Gateway de pagamento. `fake`: simulado (cartões de teste, Pix de mentira, simulador no /super),
@@ -209,6 +308,19 @@ export const envSchema = z
     message: 'Obrigatória em produção.',
     path: ['PAYMENTS_DATA_KEY'],
   })
+  .refine((env) => env.NODE_ENV !== 'production' || env.MCP_RESOURCE_URL || !mcpEnabledOf(env), {
+    message: 'Obrigatória em produção com MCP_ENABLED=true.',
+    path: ['MCP_RESOURCE_URL'],
+  })
+  .refine(
+    (env) =>
+      !env.MCP_ADMIN_RESOURCE_URL ||
+      env.MCP_ADMIN_RESOURCE_URL !== (env.MCP_RESOURCE_URL ?? DEV_MCP_RESOURCE_URL),
+    {
+      message: 'Precisa ser diferente de MCP_RESOURCE_URL (cada recurso tem a sua audiência).',
+      path: ['MCP_ADMIN_RESOURCE_URL'],
+    },
+  )
   .refine((env) => env.NODE_ENV !== 'production' || env.SMS_PROVIDER !== 'console', {
     message: 'O provedor `console` (OTP no log) não pode ser usado em produção.',
     path: ['SMS_PROVIDER'],
@@ -227,6 +339,10 @@ export const envSchema = z
     S3_REGION: env.S3_REGION ?? 'sa-east-1',
     S3_FORCE_PATH_STYLE: env.S3_FORCE_PATH_STYLE ?? false,
     ADS_DELIVERY_SECRET: env.ADS_DELIVERY_SECRET ?? randomBytes(32).toString('base64'),
+    MCP_ENABLED: mcpEnabledOf(env),
+    MCP_RESOURCE_URL: env.MCP_RESOURCE_URL ?? DEV_MCP_RESOURCE_URL,
+    MCP_RATE_LIMIT_ENABLED: env.MCP_RATE_LIMIT_ENABLED ?? env.NODE_ENV !== 'test',
+    MCP_ADMIN_ENABLED: mcpAdminEnabledOf(env),
     PAYMENTS_PROVIDER: env.PAYMENTS_PROVIDER ?? (env.NODE_ENV === 'production' ? 'none' : 'fake'),
     PAYMENTS_FAKE_WEBHOOK_SECRET:
       env.PAYMENTS_FAKE_WEBHOOK_SECRET ?? randomBytes(32).toString('base64'),

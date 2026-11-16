@@ -32,10 +32,12 @@ import type {
   AccountDeletionReceipt,
   AvatarResponse,
   AvatarUpload,
+  ConnectedAppList,
   CreateAvatarUploadInput,
   ErrorResponseDto,
   ListMyClassSessionsParams,
   MeResponseDto,
+  MeSummary,
   MyClassSessionDetail,
   MyClassSessionsResponse,
   PublicAccountDeletionInput,
@@ -159,6 +161,107 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getGetMySummaryUrl = () => {
+
+
+
+
+  return `/v1/me/summary`
+}
+
+/**
+ * Docs/14-mcp.md 3.3: a única rota de conta que aceita o token do MCP (qualquer escopo). Só `id`, `firstName` (primeira palavra do nome) e `favoriteSports`, sem e-mail, telefone, nascimento, gênero, papéis nem vínculos com espaços.
+ * @summary Primeiro nome e esportes favoritos (assistente conectado)
+ */
+export const getMySummary = async ( options?: Parameters<typeof customFetch>[1]): Promise<MeSummary> => {
+
+  return customFetch<MeSummary>(getGetMySummaryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMySummaryQueryKey = () => {
+    return [
+    `/v1/me/summary`
+    ] as const;
+    }
+
+
+export const getGetMySummaryQueryOptions = <TData = Awaited<ReturnType<typeof getMySummary>>, TError = ErrorType<ErrorResponseDto>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySummary>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMySummaryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMySummary>>> = ({ signal }) => getMySummary({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMySummary>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMySummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getMySummary>>>
+export type GetMySummaryQueryError = ErrorType<ErrorResponseDto>
+
+
+export function useGetMySummary<TData = Awaited<ReturnType<typeof getMySummary>>, TError = ErrorType<ErrorResponseDto>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySummary>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMySummary>>,
+          TError,
+          Awaited<ReturnType<typeof getMySummary>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMySummary<TData = Awaited<ReturnType<typeof getMySummary>>, TError = ErrorType<ErrorResponseDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySummary>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMySummary>>,
+          TError,
+          Awaited<ReturnType<typeof getMySummary>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMySummary<TData = Awaited<ReturnType<typeof getMySummary>>, TError = ErrorType<ErrorResponseDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySummary>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Primeiro nome e esportes favoritos (assistente conectado)
+ */
+
+export function useGetMySummary<TData = Awaited<ReturnType<typeof getMySummary>>, TError = ErrorType<ErrorResponseDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySummary>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMySummaryQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -1214,4 +1317,179 @@ export const useWithdrawMyClassSession = <TError = ErrorType<ErrorResponseDto>,
         TContext
       > => {
       return useMutation(getWithdrawMyClassSessionMutationOptions(options), queryClient);
+    }
+    export const getListConnectedAppsUrl = () => {
+
+
+
+
+  return `/v1/me/connected-apps`
+}
+
+/**
+ * RF-MCP-05 (decisão 116): clientes OAuth que o usuário autorizou, do mais recente para o mais antigo, com os escopos, a data da autorização e o último uso (gravado no máximo 1 vez por hora). `id` identifica a conexão em `DELETE /v1/me/connected-apps/{id}`.
+ * @summary Apps conectados (assistentes autorizados pelo usuário)
+ */
+export const listConnectedApps = async ( options?: Parameters<typeof customFetch>[1]): Promise<ConnectedAppList> => {
+
+  return customFetch<ConnectedAppList>(getListConnectedAppsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListConnectedAppsQueryKey = () => {
+    return [
+    `/v1/me/connected-apps`
+    ] as const;
+    }
+
+
+export const getListConnectedAppsQueryOptions = <TData = Awaited<ReturnType<typeof listConnectedApps>>, TError = ErrorType<ErrorResponseDto>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listConnectedApps>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListConnectedAppsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listConnectedApps>>> = ({ signal }) => listConnectedApps({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listConnectedApps>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListConnectedAppsQueryResult = NonNullable<Awaited<ReturnType<typeof listConnectedApps>>>
+export type ListConnectedAppsQueryError = ErrorType<ErrorResponseDto>
+
+
+export function useListConnectedApps<TData = Awaited<ReturnType<typeof listConnectedApps>>, TError = ErrorType<ErrorResponseDto>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listConnectedApps>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listConnectedApps>>,
+          TError,
+          Awaited<ReturnType<typeof listConnectedApps>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListConnectedApps<TData = Awaited<ReturnType<typeof listConnectedApps>>, TError = ErrorType<ErrorResponseDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listConnectedApps>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listConnectedApps>>,
+          TError,
+          Awaited<ReturnType<typeof listConnectedApps>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListConnectedApps<TData = Awaited<ReturnType<typeof listConnectedApps>>, TError = ErrorType<ErrorResponseDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listConnectedApps>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Apps conectados (assistentes autorizados pelo usuário)
+ */
+
+export function useListConnectedApps<TData = Awaited<ReturnType<typeof listConnectedApps>>, TError = ErrorType<ErrorResponseDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listConnectedApps>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListConnectedAppsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getDisconnectConnectedAppUrl = (id: string,) => {
+
+
+
+
+  return `/v1/me/connected-apps/${id}`
+}
+
+/**
+ * RN-MCP-04: revoga os tokens de atualização do cliente e apaga o consentimento; o token de acesso em uso deixa de valer na API na hora (e expira em até 15 min). Idempotente: conexão inexistente ou de outro usuário também responde 204.
+ * @summary Desconectar um app
+ */
+export const disconnectConnectedApp = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDisconnectConnectedAppUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectConnectedAppMutationKey = () => ['disconnectConnectedApp'] as const;
+
+export const getDisconnectConnectedAppMutationOptions = <TError = ErrorType<ErrorResponseDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectConnectedApp>>, TError,DisconnectConnectedAppMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectConnectedApp>>, TError,DisconnectConnectedAppMutationVariables, TContext> => {
+
+const mutationKey = getDisconnectConnectedAppMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectConnectedApp>>, DisconnectConnectedAppMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  disconnectConnectedApp(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectConnectedAppMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectConnectedApp>>>
+
+    export type DisconnectConnectedAppMutationError = ErrorType<ErrorResponseDto>
+    export type DisconnectConnectedAppMutationVariables = {id: string}
+
+    /**
+ * @summary Desconectar um app
+ */
+export const useDisconnectConnectedApp = <TError = ErrorType<ErrorResponseDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectConnectedApp>>, TError,DisconnectConnectedAppMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectConnectedApp>>,
+        TError,
+        DisconnectConnectedAppMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDisconnectConnectedAppMutationOptions(options), queryClient);
     }

@@ -84,7 +84,8 @@ export const getSuperListUsersUrl = (params?: SuperListUsersParams,) => {
 }
 
 /**
- * @summary Buscar usuários (nome, e-mail ou telefone)
+ * `q` procura parte do nome, do e-mail ou do telefone. Com o token do MCP (conector da plataforma, decisão 122), procura só no nome, e a resposta sai sem e-mail e sem telefone: a busca por contato revelaria o contato por tentativas.
+ * @summary Buscar usuários (nome, e-mail ou telefone; pelo MCP, só nome)
  */
 export const superListUsers = async (params?: SuperListUsersParams, options?: Parameters<typeof customFetch>[1]): Promise<SuperUserList> => {
 
@@ -155,7 +156,7 @@ export function useSuperListUsers<TData = Awaited<ReturnType<typeof superListUse
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Buscar usuários (nome, e-mail ou telefone)
+ * @summary Buscar usuários (nome, e-mail ou telefone; pelo MCP, só nome)
  */
 
 export function useSuperListUsers<TData = Awaited<ReturnType<typeof superListUsers>>, TError = ErrorType<ErrorResponseDto>>(

@@ -109,11 +109,28 @@ describe('login por OTP no telefone (AUTH_PHONE_LOGIN_ENABLED=true)', () => {
       email: 'com-plugin@exemplo.com',
       password: PASSWORD,
       phone: '+5531977776666',
-      phoneNumber: '+5531911110000',
     });
     expect(res.status).toBe(200);
     const [row] = await t.db.select().from(users).where(eq(users.id, res.body.user.id));
     expect(row).toMatchObject({ phone: '+5531977776666', phoneVerified: false });
+  });
+
+  it('com o plugin ligado, `phoneNumber` no corpo do cadastro é recusado (Better Auth 1.7.20)', async () => {
+    // Antes o plugin ignorava o campo; desde a 1.7.20 ele recusa: o telefone só vale pelo OTP.
+    const res = await t.http().post('/v1/auth/sign-up/email').send({
+      name: 'Com Plugin',
+      email: 'com-plugin-2@exemplo.com',
+      password: PASSWORD,
+      phone: '+5531977776666',
+      phoneNumber: '+5531911110000',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('PHONE_NUMBER_CANNOT_BE_SET');
+    const created = await t.db
+      .select()
+      .from(users)
+      .where(eq(users.email, 'com-plugin-2@exemplo.com'));
+    expect(created).toEqual([]);
   });
 
   it('usuário de e-mail pode verificar e vincular o telefone à própria conta', async () => {

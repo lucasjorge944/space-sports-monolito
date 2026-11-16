@@ -11,7 +11,8 @@ import type { Auth } from './auth.js';
 import { AUTH } from './auth.tokens.js';
 import type { AuthContext } from './auth-context.js';
 
-const userColumns = {
+/** Colunas de `users` que viram o `AuthUser` da requisição. */
+export const userColumns = {
   id: users.id,
   name: users.name,
   email: users.email,

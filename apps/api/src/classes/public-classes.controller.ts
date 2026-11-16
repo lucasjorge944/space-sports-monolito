@@ -1,7 +1,7 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiNotFoundResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { PublicSpaceClasses } from '@space-sports/shared';
-import { Public } from '../auth/decorators.js';
+import { OAuthScopes, Public } from '../auth/decorators.js';
 import { ErrorResponseDto } from '../common/error-response.js';
 import { ApiZodResponse } from '../openapi/zod-openapi.js';
 import { schemas } from './classes.openapi.js';
@@ -15,6 +15,7 @@ export class PublicClassesController {
 
   @Get('spaces/:slug/classes')
   @Public()
+  @OAuthScopes('spaces:read')
   @ApiParam({ name: 'slug', example: 'arena-7' })
   @ApiOperation({
     operationId: 'getSpaceClasses',

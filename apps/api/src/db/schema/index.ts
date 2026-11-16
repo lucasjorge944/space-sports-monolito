@@ -6,6 +6,7 @@ export type { GeoPoint, TimeRange } from './columns.js';
 export * from './contacts.js';
 export * from './enums.js';
 export * from './identity.js';
+export * from './oauth.js';
 export * from './online-payments.js';
 export * from './payments.js';
 export * from './platform.js';

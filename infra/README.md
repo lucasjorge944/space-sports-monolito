@@ -7,8 +7,8 @@ de deploy. Contexto em `docs/09-infra-aws.md` e nas decisões 56 (staging) e 72 
 | Caminho | O que é |
 |---|---|
 | `cdk.json` | Conta, região, repositório do GitHub, AMI e domínios, de onde as stacks leem. O que roda fora do CDK repete parte desses valores, e `test/consistency.test.ts` confere que `staging/compose.yml`, `staging/Caddyfile`, `staging/fetch-env.sh`, `scripts/staging.sh` e `deploy-staging.yml` batem com ele. |
-| `lib/shared-stack.ts` | `SpaceSportsShared`: zona DNS, repositórios ECR e provedor OIDC. Production vai usar os mesmos. |
-| `lib/staging-stack.ts` | `SpaceSportsStaging`: VPC, EC2, Elastic IP, registros DNS, papéis IAM e as fotos. |
+| `lib/shared-stack.ts` | `SpaceSportsShared`: zona DNS, repositórios ECR (`api`, `web`, `postgres` e `mcp`) e provedor OIDC. Production vai usar os mesmos. |
+| `lib/staging-stack.ts` | `SpaceSportsStaging`: VPC, EC2, Elastic IP, registros DNS (`staging`, `api-staging`, `mcp-staging` e `mcp-admin-staging`), papéis IAM e as fotos. |
 | `lib/media-storage.ts` | Bucket S3 e CloudFront das fotos de um ambiente. Ver [Fotos](#fotos-s3-e-cloudfront). |
 | `staging/bootstrap.sh` | User data da instância: swap, Docker e plugin do Compose. |
 | `staging/compose.yml`, `staging/Caddyfile` | Serviços do servidor. |
@@ -32,7 +32,8 @@ pnpm --filter @space-sports/infra synth   # idem
   migrações rodaram nela sem mudança, em amd64.
 - **Terceiro repositório no ECR.** A imagem acima precisa morar em algum lugar, então existe
   `space-sports/postgres`, além de `api` e `web`. A tag vem do hash do Dockerfile: o contêiner só é
-  recriado quando ele muda.
+  recriado quando ele muda. O quarto, `space-sports/mcp`, é o do servidor MCP, com a tag do commit,
+  como `api` e `web` ([Servidor MCP](#servidor-mcp)).
 - **Runner `ubuntu-24.04-arm`.** Disponível em repositório privado desde 2026-01-29, com 2 vCPUs, e
   conta na cota do plano. Não foi preciso QEMU. O tempo de build ainda não foi medido.
 - **Instância conferida antes do build.** O plano Free tem cota mensal de US$ 12, e os runners param
@@ -67,18 +68,65 @@ pnpm --filter @space-sports/infra synth   # idem
 
 ## Memória
 
-Máquina de 2 GB com 2 GB de swap. Os limites somam 1.504 MB, e um teste falha se passarem de 1.600 MB.
+Máquina de 2 GB com 2 GB de swap. Os limites somam 1.600 MB, e um teste falha se passarem disso.
 
 | Serviço | Limite | Observação |
 |---|---|---|
 | `api` | 512 MB | Heap do Node em 384 MB. Inclui os workers. |
-| `web` | 384 MB | Heap do Node em 256 MB. |
+| `web` | 352 MB | Heap do Node em 224 MB. Eram 384/256 MB; os 32 MB foram para o `mcp` (MCP2.8). **Pico nunca medido: confira no passo 8.** |
+| `mcp` | 128 MB | Heap do Node em 64 MB, como em produção. Serve os dois conectores. Medido: 62 MB parado, 91 MB de pico com 16 clientes e 100 MB com 32. |
 | `postgres` | 384 MB | `shared_buffers=96MB`, `max_connections=30`. |
 | `redis` | 128 MB | `maxmemory 96mb`, `noeviction`, AOF. |
-| `caddy` | 96 MB | |
-| Sistema, Docker, agente do SSM | cerca de 400 MB | |
+| `caddy` | 96 MB | Medido: 15 MB parado. |
+| Sistema, Docker, agente do SSM | cerca de 300 MB | Eram cerca de 400 MB antes do `mcp`. |
 
-Os valores são estimativas: ainda não foram medidos em uma `t4g.small`. Confira no passo 8.
+Medições em amd64 (a instância é arm64), com o `docker stats`:
+
+- **`mcp`, com os dois conectores (2026-11-12, MCP2.8).** Imagem de produção com a superfície `admin`
+  da MCP2.4 (as tools do Super carregadas), as restrições do compose (disco só de leitura, sem
+  capabilities), `MCP_SURFACES=user,admin` e a API simulada dos testes. Cada cliente conecta de novo
+  a cada rodada e chama sete tools: no host do jogador, cinco de jogador e duas métricas da gestão; no
+  do Super, sete tools do Super. Metade dos clientes em cada host.
+
+  | Heap / limite | Clientes em paralelo | Chamadas | Parado | Pico | Resultado |
+  |---|---|---|---|---|---|
+  | 48 MB / 96 MB | 2 + 2 | 3.325 até cair | 61 MB | 77 MB | heap esgotado |
+  | 48 MB / 96 MB | 4 + 4 | 2.317 até cair | 71 MB | 80 MB | heap esgotado |
+  | 56 MB / 96 MB | 1 + 1 | 29.379 em 45 s | 69 MB | 89 MB | ok, folga de 7 MB |
+  | 56 MB / 96 MB | 4 + 4 | 36.407 em 60 s | 63 MB | 86 MB | ok, folga de 10 MB |
+  | 56 MB / 96 MB | 8 + 8 | 35.385 em 60 s | 71 MB | 90 MB | ok, folga de 6 MB |
+  | **64 MB / 128 MB** | 8 + 8 | 40.880 em 60 s | 62 MB | 91 MB | ok, folga de 37 MB |
+  | **64 MB / 128 MB** | 16 + 16 | 27.734 em 60 s | 63 MB | 100 MB | ok, folga de 28 MB |
+
+  O limite do contêiner bastou em todos. O que falhou foi o heap de 48 MB: o Node para com
+  `JavaScript heap out of memory`, e o `restart: unless-stopped` religa o processo, mas as
+  requisições em curso se perdem. Com 56 MB/96 MB, 16 clientes passam, mas a folga até o limite
+  fica entre 6 e 10 MB, pouca para uma medição em amd64 que ainda não foi conferida na `t4g.small`.
+
+  **Aplicado: 128 MB com heap de 64 MB, como em produção.** 16 clientes deixam 37 MB de folga e 32
+  clientes, 28 MB, com mais vazão. A carga real do staging é de uma ou duas pessoas, e a API limita
+  cada uma a 60 leituras por minuto. Para a soma seguir em 1.600 MB, os 32 MB saíram do `web`
+  (384 → 352 MB, heap de 256 → 224 MB, os mesmos 128 MB fora do heap). Nem do Redis (motivo abaixo)
+  nem do Caddy, que já não tem sobra. O pico do `web` nunca foi medido, nem localmente nem na
+  instância: confira no passo 8 depois do primeiro deploy com estes limites.
+- **`mcp`, regressão do heap (pendência antes da produção).** Rodando direto no Node, com a mesma
+  carga (16 clientes, só tools de jogador, uma superfície), heap de 48 MB e a mesma API simulada: o
+  código do deploy da MCP.6 (`fbd0280`) e o da MCP2.1 (`1043d1b`) aguentam (de 13.846 a 17.451
+  chamadas em 45 s), e o da MCP2.2 (`db5c0c6`) e o da MCP2.3 caem por heap esgotado. A MCP2.2 não
+  mexeu no `apps/mcp` nem nas dependências: mudou `packages/shared` (camada de métricas e
+  `availability.ts`) e `packages/api-client` (endpoints de métricas). O heap depois de carregar o app
+  quase não mudou (32,3 MB na MCP.6, 33,4 MB na MCP2.3, 34,3 MB na MCP2.4), e o `McpServer` montado a
+  cada requisição aloca de 60 a 83 KB. A causa não apareceu num exame rápido: falta um heap snapshot
+  sob carga em `db5c0c6` contra `1043d1b` e uma carga longa para descartar vazamento.
+- **`redis`, mantido.** O cache de CEP guarda cada consulta por 30 dias, e o Redis cheio (com
+  `noeviction`) recusa escritas: o rate limit da API deixa passar quando o Redis falha, então os
+  limites param de valer. Por isso o `maxmemory` não foi reduzido para caber o `mcp`.
+- **`caddy`, não reduzido.** Parado, 15 MB. Com 24 clientes abrindo uma conexão TLS nova por
+  requisição e respostas comprimidas de 27 KB nos três domínios, passou de 96 MB e foi morto por
+  falta de memória. É uma carga muito acima da do staging, mas mostra que o limite atual não tem
+  sobra: se o `docker compose ps` mostrar o Caddy reiniciando, suba o limite dele.
+
+Os valores ainda não foram medidos em uma `t4g.small`. Confira no passo 8.
 
 ## Variáveis e parâmetros
 
@@ -96,6 +144,10 @@ deploy, então uma variável nova não exige mudar código. `NODE_ENV` nunca ent
 | `api/BETTER_AUTH_SECRET` | Sim | `openssl rand -base64 32` |
 | `api/ADS_DELIVERY_SECRET` | Sim | `openssl rand -base64 32`. Chave HMAC dos tokens de entrega dos anúncios (RN-ADS-04); a API não sobe sem ela com `NODE_ENV=production`. Trocar a chave só invalida os tokens das últimas 2 horas. |
 | `api/PAYMENTS_DATA_KEY` | Sim | `openssl rand -base64 32` (32 bytes). Chave AES-256-GCM do documento (CPF/CNPJ) do cadastro no gateway (decisão 97); a API não sobe sem ela com `NODE_ENV=production`. **Nunca trocar nem apagar**: sem ela, os documentos gravados ficam ilegíveis. |
+| `api/MCP_ENABLED` | Não | Só para desligar o MCP: exatamente `false`, em minúsculas ([chave de emergência](#chave-de-emergência)). Um valor que não seja booleano impede a API de subir. Sem o parâmetro, a API liga o MCP no staging, porque o compose define `MCP_RESOURCE_URL` e `DEPLOY_ENV=staging`. |
+| `api/MCP_ADMIN_ALLOWED_CLIENT_IDS` | Não | `client_id` dos clientes OAuth que podem pedir o recurso do Super (conector "Space Sports · Plataforma"), separados por vírgula. Sem o parâmetro, a API recusa todos, o esperado até o primeiro teste. Tipo `String`. Como descobrir o do Claude: [clientes do conector do Super](#clientes-do-conector-do-super). |
+| `api/MCP_ADMIN_ENABLED`, `mcp/MCP_ADMIN_ENABLED` | Não | Só para desligar o conector do Super: exatamente `false`, em minúsculas, nos dois ([chave de emergência](#só-o-conector-do-super)). Um valor que não seja booleano impede a API ou o `mcp` de subir. Sem os parâmetros, ele fica ligado no staging, porque o compose define `MCP_ADMIN_RESOURCE_URL`. |
+| `mcp/MCP_CONFIRMATION_SECRET` | Sim | `openssl rand -base64 48`. Chave HMAC dos códigos de confirmação de reserva e cancelamento do servidor MCP (decisão 114), no mínimo 32 caracteres. Vai só para o `env/mcp.env`. Trocar só invalida os códigos dos últimos 10 minutos. |
 | `api/SMTP_PASSWORD` | Para enviar e-mail | Chave de API do Resend. |
 | `seed/ALLOW_DEMO_SEED` | Para o seed | `true` |
 | `seed/SEED_DEMO_PASSWORD` | Para o seed | 8 a 128 caracteres. Vale para todas as contas de demonstração. |
@@ -125,9 +177,10 @@ ter quebra de linha.
 
 | Serviço | Variáveis |
 |---|---|
-| `api` | `NODE_ENV=production`, `NODE_OPTIONS`, `JOBS_ENABLED=true`, `REDIS_URL`, `BETTER_AUTH_URL`, `TRUSTED_ORIGINS`, `WEB_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_FROM`, `AWS_CONFIG_FILE`, `AWS_EC2_METADATA_DISABLED` |
+| `api` | `NODE_ENV=production`, `NODE_OPTIONS`, `JOBS_ENABLED=true`, `REDIS_URL`, `BETTER_AUTH_URL`, `TRUSTED_ORIGINS`, `WEB_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_FROM`, `DEPLOY_ENV=staging`, `PAYMENTS_PROVIDER=fake`, `AWS_CONFIG_FILE`, `AWS_EC2_METADATA_DISABLED`, `MCP_RESOURCE_URL`, `MCP_ADMIN_RESOURCE_URL` |
 | `seed` | As da `api`, com `NODE_ENV=development`, que o seed de demonstração exige, mais o `seed.env` |
 | `web` | `NODE_OPTIONS`, `SITE_URL`, `AUTH_PROVIDERS` (`google`) |
+| `mcp` | `NODE_ENV=production`, `NODE_OPTIONS`, `API_URL`, `WEB_URL`, `MCP_ISSUER`, `MCP_JWKS_URL`, `MCP_SURFACES=user,admin`, `MCP_RESOURCE_URL`, `MCP_ADMIN_RESOURCE_URL`, `MCP_INTERNAL_HOSTS`, mais o `mcp.env` |
 | `postgres` | `POSTGRES_USER`, `POSTGRES_DB` |
 
 `ALLOW_DEMO_SEED` existe só no `seed.env`, lido apenas pelo serviço `seed`. O web é construído com
@@ -195,6 +248,7 @@ put api/DATABASE_URL "postgres://space_sports:$db_password@postgres:5432/space_s
 put api/BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
 put api/ADS_DELIVERY_SECRET "$(openssl rand -base64 32)"
 put api/PAYMENTS_DATA_KEY "$(openssl rand -base64 32)"
+put mcp/MCP_CONFIRMATION_SECRET "$(openssl rand -base64 48)"
 
 put seed/ALLOW_DEMO_SEED true
 put seed/SEED_SUPER_EMAIL '<e-mail do Super>'
@@ -281,11 +335,39 @@ Sinais de que a `t4g.small` não basta: swap acima de 500 MB, contêiner perto d
 no `dmesg` ou reinícios em `docker compose ps`. Ajuste os limites no `compose.yml`, ou passe para a
 `t4g.medium` em `cdk.json`, que custa cerca de US$ 20/mês a mais ligada o mês todo.
 
+Depois do primeiro deploy com o `web` em 352 MB e o `mcp` em 128 MB (MCP2.8), confira os dois com o
+site e os dois conectores em uso (navegue pelas páginas públicas, pelo `/painel` e pelo `/super`, e
+faça a jornada do conector no Claude):
+
+```bash
+# Pico desde a criação do contêiner, pelo cgroup (memory.peak, cgroup v2).
+for service in web mcp; do
+  id=$(docker inspect -f '{{.Id}}' "$(docker compose ps -q "$service")")
+  peak=$(cat "/sys/fs/cgroup/system.slice/docker-$id.scope/memory.peak")
+  echo "$service: pico de $((peak / 1048576)) MB"
+done
+# Apoio: uso atual, reinícios e falta de memória.
+docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' \
+  $(docker compose ps -q web mcp)
+docker inspect -f '{{.Name}} reinícios={{.RestartCount}} oom={{.State.OOMKilled}}' \
+  $(docker compose ps -q web mcp)
+docker compose logs --since 1h web mcp | grep -i -E 'heap out of memory|killed' || echo 'sem falta de memória'
+```
+
+O pico vem do `memory.peak` do cgroup, que guarda o máximo desde a criação do contêiner (um
+`docker compose up` que recria o serviço zera a conta). O `docker stats` mostra só o uso do
+momento, sem o cache de arquivos inativo, e serve de apoio. O `web` precisa ficar abaixo de cerca de
+320 MB (90% de 352 MB) no `memory.peak`. Se passar disso, ou se reiniciar
+por falta de memória, devolva os 32 MB ao `web` e leve o `mcp` de volta a 96 MB com heap de 56 MB,
+que aguentou 16 clientes com 90 MB de pico. Registre os valores medidos na tabela acima.
+
 ### 9. Testar de fora
 
 ```bash
 curl -fsS https://api-staging.spacesports.com.br/v1/health
 curl -fsS https://staging.spacesports.com.br/health
+curl -fsS https://mcp-staging.spacesports.com.br/health
+curl -fsS https://mcp-admin-staging.spacesports.com.br/health
 ```
 
 Entre em `https://staging.spacesports.com.br/entrar` com uma das contas de demonstração, e no app
@@ -297,6 +379,11 @@ A instância desliga sozinha todo dia às 20h de Brasília (`autoStopCron` em `c
 
 Com a instância desligada, o disco e o Elastic IP continuam cobrados. Os dados e os contêineres
 ficam: eles voltam sozinhos ao ligar.
+
+O MCP (`mcp-staging.` e `mcp-admin-staging.`) roda nessa mesma instância e cai junto: os dois
+conectores no Claude falham até ela ser ligada de novo. Não é preciso reconectar o do jogador, porque
+os dados e o Elastic IP são os mesmos; o do Super vale por 24 horas de qualquer jeito
+(`docs/14-mcp.md`, seção 8.1).
 
 ```bash
 export AWS_PROFILE=<perfil da conta-membro>
@@ -313,6 +400,266 @@ gh workflow run deploy-staging.yml --repo Space-Sports-Apps/mobile-web --ref mai
 ```
 
 Disparar o workflow com a instância desligada falha de propósito.
+
+## Servidor MCP
+
+O `apps/mcp` (docs/14-mcp.md) roda no mesmo host, atrás do Caddy, e um só contêiner serve os dois
+conectores (seção 8.1 do `docs/14-mcp.md`):
+
+| Conector | URL | Superfície | Quem |
+|---|---|---|---|
+| Space Sports | `https://mcp-staging.spacesports.com.br/mcp` | `user` | jogador, Dono, Admin, Professor |
+| Space Sports · Plataforma | `https://mcp-admin-staging.spacesports.com.br/mcp` | `admin` | só Super, somente leitura |
+
+Ele não tem banco nem chave de serviço: valida o token OAuth do usuário e chama a API com esse mesmo
+token. A API é o servidor de autorização, com um recurso por conector.
+
+| Peça | Configuração |
+|---|---|
+| Imagem | `space-sports/mcp:<commit>` no ECR, construída pelo `deploy-staging.yml` a partir de `apps/mcp/Dockerfile`, só quando falta. |
+| DNS | Registros `A` de `mcp-staging` e `mcp-admin-staging` (`mcpSubdomain` e `mcpAdminSubdomain` no `cdk.json`) para o Elastic IP, criados pela `SpaceSportsStaging`. |
+| Caddy | `mcp-staging.spacesports.com.br` e `mcp-admin-staging.spacesports.com.br` → `mcp:3340`, os dois com `X-Robots-Tag`. Sem `encode` e sem `flush_interval`: o Caddy repassa na hora o `text/event-stream` e as respostas sem `Content-Length`, e as respostas JSON do MCP são pequenas. Sem `header_up Host`: o `mcp` escolhe a superfície pelo host original. |
+| Superfícies | `MCP_SURFACES=user,admin`. A escolha é pelo host (e pelo caminho) da requisição; cada superfície tem o seu metadata (RFC 9728), as suas tools e aceita só tokens da sua audiência. Host sem superfície: 404. |
+| Rede | Só a `edge`: recebe do Caddy e fala com a API pelo nome do serviço. Nunca alcança Postgres nem Redis. |
+| Emissor | `MCP_ISSUER=https://api-staging.spacesports.com.br/v1/auth`, o `BETTER_AUTH_URL` da API mais `/v1/auth`. Tem de bater com o `iss` que a API grava no token. |
+| JWKS | `MCP_JWKS_URL=http://api:3333/v1/auth/jwks`, direto na API, sem dar a volta pelo Caddy. Com `NODE_ENV=production` o MCP só aceita HTTP para hosts de `MCP_INTERNAL_HOSTS` (`api`) ou loopback. |
+| Recursos | `MCP_RESOURCE_URL=https://mcp-staging.spacesports.com.br/mcp` e `MCP_ADMIN_RESOURCE_URL=https://mcp-admin-staging.spacesports.com.br/mcp`, iguais no `mcp` e na `api` (são o `aud` dos tokens de cada conector). Os testes conferem. |
+| Segredo | `mcp/MCP_CONFIRMATION_SECRET` no Parameter Store, gravado em `env/mcp.env`. O deploy para antes de tocar nos contêineres se ele faltar. |
+| Saúde | `GET /health`, conferido pelo healthcheck do compose. Sobe depois da API saudável. |
+| Isolamento | `read_only: true`, `cap_drop: [ALL]` e `no-new-privileges`: o processo recebe o token dos usuários e não grava nada (logs no stdout), então não precisa de `tmpfs`. Conferido com o compose e sob carga. |
+
+Na API, `MCP_RESOURCE_URL` com `DEPLOY_ENV=staging` liga o servidor de autorização
+(`/v1/auth/oauth2/*`, `/v1/auth/jwks` e o metadata), que já chega pelo bloco `api-staging.` do Caddy, e
+`MCP_ADMIN_RESOURCE_URL` cria e liga o segundo recurso, o do Super (token de 15 minutos, conexão de
+até 24 horas). `MCP_ENABLED`, `MCP_ADMIN_ENABLED` e `MCP_ADMIN_ALLOWED_CLIENT_IDS` ficam fora do
+compose de propósito: o `environment` do compose vence os arquivos de `env/`, e anularia as chaves de
+emergência e a lista de clientes, que vêm dos parâmetros.
+O registro dinâmico de clientes (`MCP_DYNAMIC_CLIENT_REGISTRATION`) fica desligado: o Claude se
+identifica pelo Client ID Metadata Document. Só ligue (no `x-api-environment` do compose) se o teste
+com o Claude mostrar que ele não usa o CIMD.
+
+### Chave de emergência
+
+`MCP_ENABLED=false` na API recusa todo token do MCP (503 `MCP_DISABLED`) e tira do ar as rotas OAuth,
+o JWKS e o metadata, sem afetar app e web. Com o JWKS fora do ar, o `mcp` também deixa de aceitar
+tokens. Derruba os dois conectores; para desligar só o do Super, veja
+[a seção seguinte](#só-o-conector-do-super).
+
+Pelo caminho normal, que vale a partir do próximo deploy e sobrevive aos seguintes:
+
+```bash
+export AWS_PROFILE=<perfil da conta-membro>
+aws ssm put-parameter --region sa-east-1 --overwrite --type String \
+  --name /space-sports/staging/api/MCP_ENABLED --value false > /dev/null
+gh workflow run deploy-staging.yml --repo Space-Sports-Apps/mobile-web --ref main
+gh run watch --repo Space-Sports-Apps/mobile-web
+```
+
+Na hora, no servidor, em `/opt/space-sports` (sem esperar o build):
+
+```bash
+sed -i '/^MCP_ENABLED=/d' env/api.env && echo 'MCP_ENABLED=false' >> env/api.env
+docker compose up -d api      # recria a API com o env novo
+docker compose stop mcp
+```
+
+O `env/api.env` é regravado a cada deploy a partir do Parameter Store, e o `deploy.sh` sobe o `mcp` de
+novo: grave também o parâmetro acima, senão o próximo deploy religa tudo. Para religar, apague o
+parâmetro (`aws ssm delete-parameter --region sa-east-1 --name /space-sports/staging/api/MCP_ENABLED`)
+e rode o workflow.
+
+#### Só o conector do Super
+
+`MCP_ADMIN_ENABLED=false` na API responde 503 `MCP_DISABLED` ao token, ao authorize e à emissão do
+recurso do Super, sem afetar o conector do jogador, o app e o web. O mesmo parâmetro no grupo `mcp`
+faz a superfície `admin` responder 503 no endpoint e no metadata dela, antes de validar o token e de
+chamar a API. Grave os dois com o valor exato `false`, em minúsculas: um valor que não seja booleano
+(ex.: `desligado`) é recusado na subida e derruba a API ou o `mcp` em vez de desligar só o Super.
+
+```bash
+export AWS_PROFILE=<perfil da conta-membro>
+for group in api mcp; do
+  aws ssm put-parameter --region sa-east-1 --overwrite --type String \
+    --name "/space-sports/staging/$group/MCP_ADMIN_ENABLED" --value false > /dev/null
+done
+gh workflow run deploy-staging.yml --repo Space-Sports-Apps/mobile-web --ref main
+gh run watch --repo Space-Sports-Apps/mobile-web
+```
+
+Na hora, no servidor, em `/opt/space-sports` (grave os parâmetros também, pelo mesmo motivo acima):
+
+```bash
+for file in env/api.env env/mcp.env; do
+  sed -i '/^MCP_ADMIN_ENABLED=/d' "$file" && echo 'MCP_ADMIN_ENABLED=false' >> "$file"
+done
+docker compose up -d api mcp      # recria os dois com o env novo
+```
+
+Com a chave desligada, o `POST` em `https://mcp-admin-staging.spacesports.com.br/mcp` responde 503
+(o do jogador segue com 401 sem token), e o authorize do recurso do Super também (teste da seção
+seguinte). Para religar, apague os dois parâmetros e rode o workflow:
+
+```bash
+for group in api mcp; do
+  aws ssm delete-parameter --region sa-east-1 --name "/space-sports/staging/$group/MCP_ADMIN_ENABLED"
+done
+```
+
+### Clientes do conector do Super
+
+Só os clientes OAuth listados em `api/MCP_ADMIN_ALLOWED_CLIENT_IDS` podem pedir o recurso do Super
+(decisão 123). Sem o parâmetro, a API recusa todos: o authorize responde 400 `unauthorized_client`,
+sem redirecionar, e grava no log o `client_id` recusado (`Cliente fora de MCP_ADMIN_ALLOWED_CLIENT_IDS
+pedindo o recurso do Super`, campo `oauthClientId`). É assim que se descobre o do Claude. Com o Client
+ID Metadata Document, o `client_id` é a URL `https://` do documento de metadados do cliente.
+
+Para conferir a recusa e o log sem o Claude (o `client_id` `teste-curl` é inventado):
+
+```bash
+curl -sS -w '\n%{http_code}\n' -G https://api-staging.spacesports.com.br/v1/auth/oauth2/authorize \
+  --data-urlencode response_type=code --data-urlencode client_id=teste-curl \
+  --data-urlencode redirect_uri=https://example.com/callback \
+  --data-urlencode code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM \
+  --data-urlencode code_challenge_method=S256 \
+  --data-urlencode resource=https://mcp-admin-staging.spacesports.com.br/mcp
+```
+
+Responde 400 com `"error":"unauthorized_client"` (503 com a chave do Super desligada). Depois:
+
+1. Adicione no Claude o conector personalizado `https://mcp-admin-staging.spacesports.com.br/mcp`
+   (Configurações → Conectores → Adicionar conector personalizado) e clique em "Conectar". A conexão
+   falha: é o esperado enquanto o parâmetro não existe.
+2. No servidor ([passo 5](#5-entrar-no-servidor)), em `/opt/space-sports`, liste os `client_id`
+   recusados:
+
+   ```bash
+   docker compose logs --no-log-prefix --since 30m api \
+     | grep -F 'Cliente fora de MCP_ADMIN_ALLOWED_CLIENT_IDS' \
+     | grep -o '"oauthClientId":"[^"]*"' | sort | uniq -c
+   ```
+
+   Libere só o que veio da sua tentativa: o horário bate com o clique (sem o `uniq`, `grep -F` no
+   `docker compose logs --timestamps` mostra a hora), e o domínio da URL tem de ser do Claude.
+   `teste-curl` é o do teste acima, e `""` é um pedido sem `client_id`. Se nada aparecer, o Claude não
+   chegou ao authorize: confira antes o conector do jogador, que usa o mesmo caminho (registro
+   dinâmico, na seção acima).
+3. Grave o parâmetro (do tipo `String`; vários clientes vão separados por vírgula) e aplique:
+
+   ```bash
+   export AWS_PROFILE=<perfil da conta-membro>
+   aws ssm put-parameter --region sa-east-1 --overwrite --type String \
+     --name /space-sports/staging/api/MCP_ADMIN_ALLOWED_CLIENT_IDS --value '<client_id>' > /dev/null
+   aws ssm get-parameter --region sa-east-1 \
+     --name /space-sports/staging/api/MCP_ADMIN_ALLOWED_CLIENT_IDS --query Parameter.Value --output text
+   gh workflow run deploy-staging.yml --repo Space-Sports-Apps/mobile-web --ref main
+   gh run watch --repo Space-Sports-Apps/mobile-web
+   ```
+
+   O `get-parameter` deve devolver a própria URL: a AWS CLI v2 grava o valor como texto, mas a v1
+   baixaria o conteúdo de um valor que começa com `https://`. Para aplicar na hora, no servidor
+   (grave o parâmetro também, senão o próximo deploy apaga a linha):
+
+   ```bash
+   sed -i '/^MCP_ADMIN_ALLOWED_CLIENT_IDS=/d' env/api.env
+   echo 'MCP_ADMIN_ALLOWED_CLIENT_IDS=<client_id>' >> env/api.env
+   docker compose up -d api
+   ```
+
+4. "Conectar" de novo no Claude: `/entrar` com a conta Super e o consentimento "Permitir acesso à
+   plataforma". Outra conta vê "Sua conta não tem acesso". A conexão do Super vale por até 24 horas;
+   depois, é preciso conectar de novo.
+
+Tirar um cliente da lista impede novas autorizações dele. Para cortar na hora uma conexão já feita, use
+"Desconectar" em "Apps conectados" (app ou web) ou a [chave do Super](#só-o-conector-do-super).
+
+### Aplicar
+
+A ordem importa. O workflow para com `RepositoryNotFoundException` se o repositório `space-sports/mcp`
+não existir, e o `fetch-env.sh` para se faltar o segredo. Por isso, o segredo e o `cdk deploy` vêm
+antes do merge no `main`:
+
+```bash
+export AWS_PROFILE=<perfil da conta-membro>
+aws ssm put-parameter --region sa-east-1 --type SecureString \
+  --name /space-sports/staging/mcp/MCP_CONFIRMATION_SECRET \
+  --value "$(openssl rand -base64 48)" > /dev/null
+
+cd infra
+pnpm synth
+pnpm cdk diff --all
+pnpm cdk deploy --all
+```
+
+Sem `--overwrite`: repetir o comando não troca o segredo por acidente. O diff deve mostrar só
+acréscimos: na `SpaceSportsShared`, o repositório `space-sports/mcp` e o export do ARN dele; na
+`SpaceSportsStaging`, o registro `mcp-staging` e as declarações novas nas políticas dos papéis da
+instância (pull) e de deploy (push). Nada substituído.
+
+Depois, o merge no `main` e, com a instância ligada, o deploy (automático depois da CI, ou à mão com
+`gh workflow run deploy-staging.yml`). O primeiro deploy constrói a imagem do MCP em arm64. O Caddy
+pede o certificado de `mcp-staging.` sozinho, assim que o DNS responder.
+
+#### Conector do Super (MCP2.8)
+
+Nenhum parâmetro novo é obrigatório. A ordem importa:
+
+1. A imagem precisa da superfície `admin` do `apps/mcp` (MCP2.4, no `main` desde `9f4ea5b`). Sem
+   ela, o `mcp` não sobe (`MCP_SURFACES: superfície desconhecida`), o deploy para no `up --wait` e o
+   conector do jogador cai junto. O `test/mcp-config.test.ts` passa o environment do serviço pelo
+   `loadConfig` do `apps/mcp` e falha antes disso.
+2. O `cdk deploy`, antes do merge, cria o registro `mcp-admin-staging`:
+
+   ```bash
+   export AWS_PROFILE=<perfil da conta-membro>
+   cd infra
+   pnpm synth
+   pnpm cdk diff --all
+   pnpm cdk deploy --all
+   dig +short mcp-admin-staging.spacesports.com.br    # o Elastic IP
+   ```
+
+   O diff deve mostrar só um acréscimo: na `SpaceSportsStaging`, o `AWS::Route53::RecordSet` de
+   `mcp-admin-staging`. Nada na `SpaceSportsShared`, nada substituído.
+3. O merge no `main` e, com a instância ligada, o deploy. A imagem do MCP é a mesma; o Caddy pede o
+   certificado de `mcp-admin-staging.` sozinho, assim que o DNS responder.
+4. Os [testes](#testar) e, depois, o [`client_id` do Claude](#clientes-do-conector-do-super).
+
+### Testar
+
+```bash
+for host in mcp-staging mcp-admin-staging; do
+  echo "== $host"
+  dig +short "$host.spacesports.com.br"                                   # o Elastic IP
+  curl -fsS "https://$host.spacesports.com.br/health"; echo                # {"status":"ok"}
+  curl -fsS "https://$host.spacesports.com.br/.well-known/oauth-protected-resource/mcp"; echo
+  curl -sS -o /dev/null -D - -X POST "https://$host.spacesports.com.br/mcp" \
+    -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | grep -i -E '^HTTP|^www-authenticate'
+done
+curl -fsS https://api-staging.spacesports.com.br/.well-known/oauth-authorization-server/v1/auth
+```
+
+O metadata de cada recurso traz o próprio `resource` (`https://mcp-staging.spacesports.com.br/mcp` e
+`https://mcp-admin-staging.spacesports.com.br/mcp`) e o mesmo
+`"authorization_servers":["https://api-staging.spacesports.com.br/v1/auth"]`; o do jogador anuncia os
+escopos de jogador e de gestão, e o do Super só `super:read`. O do servidor de autorização traz o
+mesmo `issuer`. O `POST /mcp` sem token responde 401 nos dois, cada um apontando o seu metadata:
+`WWW-Authenticate: Bearer resource_metadata="https://<host>/.well-known/oauth-protected-resource/mcp", scope="..."`.
+Um host fora dos dois (ex.: o IP direto) não chega ao `mcp`: o Caddy só atende os quatro domínios.
+
+No servidor, em `/opt/space-sports`:
+
+```bash
+docker compose ps mcp                        # healthy
+docker compose logs --tail 50 mcp            # JSON, uma linha por tool; nada de token
+grep -c '^MCP_CONFIRMATION_SECRET=' env/mcp.env   # 1
+```
+
+Por fim, o conector no Claude: em **Configurações → Conectores → Adicionar conector personalizado**,
+a URL `https://mcp-staging.spacesports.com.br/mcp`. "Conectar" abre o `/entrar` do staging e depois o
+consentimento em `/autorizar` (tarefa MCP.3, que precisa estar no ar). Faça a jornada da seção 5 de
+`docs/14-mcp.md`: buscar espaço → horários → reservar com Pix → cancelar → aulas. Depois, em "Apps
+conectados" (app ou web), "Desconectar" corta o acesso na hora.
 
 ## Fotos (S3 e CloudFront)
 
@@ -450,7 +797,7 @@ No servidor, em `/opt/space-sports`:
 
 | Tarefa | Comando |
 |---|---|
-| Logs | `docker compose logs -f --tail 100 api` |
+| Logs | `docker compose logs -f --tail 100 api` (ou `web`, `mcp`) |
 | Versão no ar | `cat .env` |
 | Reiniciar um serviço | `docker compose restart api` |
 | Trocar um segredo | Altere o parâmetro e rode o workflow. O `api.env` é regravado, e a API só é recriada se o env mudar. |

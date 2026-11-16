@@ -97,7 +97,7 @@ export const getListSpaceBookingsUrl = (spaceId: string,
 }
 
 /**
- * Decisão 53: sem `payment.record` (Professor), os valores e a situação do pagamento chegam nulos e o filtro `paymentStatus` é ignorado.
+ * Decisão 53: sem `payment.record` (Professor), os valores e a situação do pagamento chegam nulos e o filtro `paymentStatus` é ignorado. `q` procura no nome do cliente (app ou balcão) e no telefone do balcão; com o token do MCP (decisões 121 e 122), só no nome, e os valores exigem também `manage:finance:read`.
  * @summary Reservas do espaço com filtros
  */
 export const listSpaceBookings = async (spaceId: string,

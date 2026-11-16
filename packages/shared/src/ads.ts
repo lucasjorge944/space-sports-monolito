@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { periodDateSchema } from './booking';
 import { PHOTO_CONTENT_TYPES, phoneE164Schema, photoUploadSchema, spaceCardSchema } from './spaces';
 import { pageOf, pageQuerySchema } from './super';
 
@@ -444,7 +445,7 @@ export const AD_REPORT_MAX_DAYS = 366;
  * até o fim, se já terminou).
  */
 export const adReportQuerySchema = z
-  .object({ from: isoDate.optional(), to: isoDate.optional() })
+  .object({ from: periodDateSchema.optional(), to: periodDateSchema.optional() })
   .strict()
   .refine((value) => !value.from || !value.to || value.to >= value.from, {
     message: 'O fim do período precisa ser igual ou depois do início.',

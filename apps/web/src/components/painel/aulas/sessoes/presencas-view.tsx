@@ -33,9 +33,9 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDateTime, formatLocalDate, todayLocal } from '@/lib/format';
 import { defaultPeriod, formatRate, historyStatus, periodError } from '@/lib/painel/sessions';
+import { periodDateParam } from '@/lib/period';
 import { textLink } from '@/lib/utils';
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ALL = 'all';
 
 export function PresencasView() {
@@ -55,8 +55,8 @@ function Presencas({ scope }: { scope: SpaceScope }) {
   const fallback = defaultPeriod(todayLocal());
   const rawFrom = params.get('de');
   const rawTo = params.get('ate');
-  const from = rawFrom && DATE_RE.test(rawFrom) ? rawFrom : fallback.from;
-  const to = rawTo && DATE_RE.test(rawTo) ? rawTo : fallback.to;
+  const from = periodDateParam(rawFrom, fallback.from);
+  const to = periodDateParam(rawTo, fallback.to);
   const classGroupId = params.get('turma') ?? '';
   const studentId = params.get('aluno') ?? '';
 

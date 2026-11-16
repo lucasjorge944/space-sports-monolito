@@ -108,6 +108,21 @@ export function resetClasses() {
 }
 resetClasses();
 
+/**
+ * Mesma regra da API (`periodDateSchema`): `from`/`to` em formato de data só valem de 2000-01-01 a
+ * 2100-12-31; fora disso, 400 `VALIDATION_ERROR`. Instantes (ISO com hora) não passam por aqui.
+ */
+export function periodOutOfRange(url) {
+  return ['from', 'to', 'date'].some((key) => {
+    const value = url.searchParams.get(key);
+    return (
+      value !== null &&
+      /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+      (value < '2000-01-01' || value > '2100-12-31')
+    );
+  });
+}
+
 const localDate = (iso) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
 
@@ -189,6 +204,10 @@ export async function handleClasses({ req, res, path, url, send, fail, readJson,
   const teacherOnly =
     roles.includes('TEACHER') && !roles.some((r) => r === 'OWNER' || r === 'ADMIN');
   const canManage = roles.includes('OWNER') || roles.includes('ADMIN');
+  if (method === 'GET' && periodOutOfRange(url)) {
+    fail(res, 400, 'VALIDATION_ERROR', 'Use uma data entre 01/01/2000 e 31/12/2100.');
+    return true;
+  }
   const own = (s) => !teacherOnly || s.teachers.some((t) => t.userId === userId);
 
   if (method === 'GET' && sub === '/teachers') {

@@ -77,7 +77,7 @@ export async function attendanceSettingsOf(
  * Assinaturas que dão acesso às turmas: a pendente de aprovação e a cancelada não contam; a
  * inadimplente conta, mas bloqueia a confirmação (RN-CLASS-06).
  */
-const ENROLLED_SUBSCRIPTION: SubscriptionStatus[] = ['ACTIVE', 'PAST_DUE'];
+export const ENROLLED_SUBSCRIPTION: SubscriptionStatus[] = ['ACTIVE', 'PAST_DUE'];
 
 /** Matrícula ativa do aluno numa turma, com o que importa da assinatura. */
 export interface EnrollmentState {

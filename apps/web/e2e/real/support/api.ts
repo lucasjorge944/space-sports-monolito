@@ -68,7 +68,7 @@ export async function finishSignUp(page: Page) {
   await page.getByLabel('Telefone').fill('31988880000');
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await expect(page.getByRole('heading', { name: 'Sobre você' })).toBeVisible();
-  await page.getByRole('button', { name: 'Pular' }).click();
+  await page.getByRole('link', { name: 'Pular' }).click();
 }
 
 /** Login pela tela `/entrar`. */

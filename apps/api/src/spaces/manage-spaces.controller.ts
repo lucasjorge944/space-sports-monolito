@@ -29,7 +29,14 @@ import {
   type UpdateSpaceSettings,
 } from '@space-sports/shared';
 import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser, SpacePermission } from '../auth/decorators.js';
+import {
+  ApiAuth,
+  CurrentUser,
+  OAuthScopes,
+  OAuthView,
+  SpacePermission,
+} from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiUuidParam, ApiZodBody, ApiZodResponse } from '../openapi/zod-openapi.js';
@@ -53,6 +60,8 @@ export class ManageSpacesController {
   ) {}
 
   @Get()
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.managedSpace)
   @SpacePermission('schedule.view')
   @ApiOperation({
     operationId: 'getManagedSpace',

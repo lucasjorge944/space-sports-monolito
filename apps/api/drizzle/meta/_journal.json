@@ -218,6 +218,13 @@
       "when": 1793837676942,
       "tag": "0030_reviews_polish",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794441198337,
+      "tag": "0031_mcp_oauth",
+      "breakpoints": true
     }
   ]
 }

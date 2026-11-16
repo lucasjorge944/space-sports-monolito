@@ -42,35 +42,40 @@ export type BookingTimeViolation =
   | 'BOOKING_BEYOND_WINDOW';
 
 /**
- * Períodos de funcionamento em torno da data local (véspera que passa da meia-noite, o dia e o
- * dia seguinte), unidos quando se sobrepõem ou encostam.
+ * Intervalos de funcionamento que abrem na data local (o que passa da meia-noite termina no dia
+ * seguinte). Com `overnightOnly`, só os que passam da meia-noite.
  */
-export function openingIntervals(
-  date: string,
+function dayOpeningIntervals(
+  day: string,
   openingHours: readonly OpeningHour[],
   timeZone: string,
+  overnightOnly = false,
 ): Interval[] {
+  const weekday = weekdayOf(day);
   const intervals: Interval[] = [];
-  // A véspera entra pelo intervalo que passa da meia-noite; o dia seguinte, para reservas que
-  // começam na data e terminam depois da meia-noite.
-  for (const offset of [-1, 0, 1]) {
-    const day = addDays(date, offset);
-    const weekday = weekdayOf(day);
-    for (const hour of openingHours) {
-      if (hour.weekday !== weekday) continue;
-      const opens = timeToMinutes(hour.opensAt);
-      const closes = timeToMinutes(hour.closesAt);
-      const overnight = closes <= opens;
-      if (offset === -1 && !overnight) continue;
-      intervals.push({
-        start: zonedToUtc(day, opens, timeZone),
-        end: zonedToUtc(overnight ? addDays(day, 1) : day, closes, timeZone),
-      });
-    }
+  for (const hour of openingHours) {
+    if (hour.weekday !== weekday) continue;
+    const opens = timeToMinutes(hour.opensAt);
+    const closes = timeToMinutes(hour.closesAt);
+    const overnight = closes <= opens;
+    if (overnightOnly && !overnight) continue;
+    intervals.push({
+      start: zonedToUtc(day, opens, timeZone),
+      end: zonedToUtc(overnight ? addDays(day, 1) : day, closes, timeZone),
+    });
   }
-  intervals.sort((a, b) => a.start.getTime() - b.start.getTime());
+  return intervals;
+}
+
+/** O mais tarde e o mais cedo de dois instantes (como `Date`). */
+export const latest = (a: Date, b: Date) => (a > b ? a : b);
+export const earliest = (a: Date, b: Date) => (a < b ? a : b);
+
+/** Une os intervalos que se sobrepõem ou encostam, em ordem. */
+export function mergeIntervals(intervals: readonly Interval[]): Interval[] {
+  const sorted = [...intervals].sort((a, b) => a.start.getTime() - b.start.getTime());
   const merged: Interval[] = [];
-  for (const interval of intervals) {
+  for (const interval of sorted) {
     const last = merged.at(-1);
     if (last && interval.start <= last.end) {
       if (interval.end > last.end) last.end = interval.end;
@@ -79,6 +84,46 @@ export function openingIntervals(
     }
   }
   return merged;
+}
+
+/**
+ * Períodos de funcionamento em torno da data local (véspera que passa da meia-noite, o dia e o
+ * dia seguinte), unidos quando se sobrepõem ou encostam.
+ */
+export function openingIntervals(
+  date: string,
+  openingHours: readonly OpeningHour[],
+  timeZone: string,
+): Interval[] {
+  // A véspera entra pelo intervalo que passa da meia-noite; o dia seguinte, para reservas que
+  // começam na data e terminam depois da meia-noite.
+  return mergeIntervals([
+    ...dayOpeningIntervals(addDays(date, -1), openingHours, timeZone, true),
+    ...dayOpeningIntervals(date, openingHours, timeZone),
+    ...dayOpeningIntervals(addDays(date, 1), openingHours, timeZone),
+  ]);
+}
+
+/**
+ * Funcionamento das datas locais `from` a `to` (inclusive), unido e recortado em
+ * [00:00 de `from`, 00:00 do dia seguinte a `to`): a madrugada que vem da véspera de `from` entra,
+ * a que passa do fim de `to` não. Base da ocupação (camada de métricas, docs/14-mcp.md 8.4).
+ */
+export function openingPeriods(
+  from: string,
+  to: string,
+  openingHours: readonly OpeningHour[],
+  timeZone: string,
+): Interval[] {
+  const start = zonedToUtc(from, 0, timeZone);
+  const end = zonedToUtc(addDays(to, 1), 0, timeZone);
+  const intervals = dayOpeningIntervals(addDays(from, -1), openingHours, timeZone, true);
+  for (let day = from; day <= to; day = addDays(day, 1)) {
+    intervals.push(...dayOpeningIntervals(day, openingHours, timeZone));
+  }
+  return mergeIntervals(intervals)
+    .map((i) => ({ start: latest(i.start, start), end: earliest(i.end, end) }))
+    .filter((i) => i.start < i.end);
 }
 
 function withinOpening(period: Interval, intervals: readonly Interval[]): boolean {

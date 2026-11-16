@@ -3,8 +3,8 @@
 # este script por SSM Run Command (infra/scripts/apply-staging.sh):
 #   deploy.sh <registro do ECR> <tag do commit> <tag do postgres>
 #
-# Qualquer falha para o deploy. As migrações rodam antes da troca: se falharem, API e web seguem na
-# versão anterior.
+# Qualquer falha para o deploy. As migrações rodam antes da troca: se falharem, API, web e MCP seguem
+# na versão anterior.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -32,7 +32,7 @@ docker compose pull --quiet
 
 docker compose up --detach --wait --wait-timeout 120 postgres redis
 docker compose run --rm -T migrate
-docker compose up --detach --wait --wait-timeout 180 api web
+docker compose up --detach --wait --wait-timeout 180 api web mcp
 # Recria para ler o Caddyfile novo. Os certificados ficam no volume.
 docker compose up --detach --force-recreate caddy
 

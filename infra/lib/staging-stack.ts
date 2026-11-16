@@ -146,7 +146,15 @@ export class StagingStack extends Stack {
       instanceId: instance.instanceId,
     });
 
-    for (const subdomain of [staging.webSubdomain, staging.apiSubdomain]) {
+    // Os dois conectores do MCP (jogador e Super) vão para o mesmo serviço, que escolhe a superfície
+    // pelo host (docs/14-mcp.md 8.1).
+    const subdomains = [
+      staging.webSubdomain,
+      staging.apiSubdomain,
+      staging.mcpSubdomain,
+      staging.mcpAdminSubdomain,
+    ];
+    for (const subdomain of subdomains) {
       new route53.ARecord(this, `${subdomain}Record`, {
         zone: shared.hostedZone,
         recordName: subdomain,

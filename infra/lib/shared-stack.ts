@@ -5,8 +5,12 @@ import * as route53 from 'aws-cdk-lib/aws-route53';
 import type { Construct } from 'constructs';
 import type { SpaceSportsConfig } from './config.js';
 
-/** `postgres` é a imagem própria do staging: ver `infra/staging/postgres/Dockerfile`. */
-const IMAGE_NAMES = ['api', 'web', 'postgres'] as const;
+/**
+ * `postgres` é a imagem própria do staging: ver `infra/staging/postgres/Dockerfile`. `mcp` é o servidor
+ * MCP (`apps/mcp`, docs/14-mcp.md), no fim da lista para as políticas dos papéis só ganharem
+ * declarações no `cdk deploy`, sem reordenar as que já existem.
+ */
+const IMAGE_NAMES = ['api', 'web', 'postgres', 'mcp'] as const;
 const IMAGES_TO_KEEP = 5;
 
 export const GITHUB_OIDC_HOST = 'token.actions.githubusercontent.com';

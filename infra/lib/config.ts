@@ -40,6 +40,13 @@ const configSchema = z.object({
     diskSizeGb: z.number().int().positive(),
     webSubdomain: z.string().min(1),
     apiSubdomain: z.string().min(1),
+    /** Servidor MCP (`apps/mcp`, docs/14-mcp.md); production usa `mcp`. */
+    mcpSubdomain: z.string().min(1),
+    /**
+     * Conector do Super ("Space Sports · Plataforma", docs/14-mcp.md 8.1), servido pelo mesmo
+     * contêiner do `mcp`; production usa `mcp-admin`.
+     */
+    mcpAdminSubdomain: z.string().min(1),
     parameterPrefix: z.string().regex(/^(\/[\w.-]+)+$/),
     /** Expressão `cron(...)` do EventBridge Scheduler, no fuso America/Sao_Paulo. */
     autoStopCron: z.string().regex(/^cron\(.+\)$/),

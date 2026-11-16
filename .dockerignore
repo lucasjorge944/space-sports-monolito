@@ -1,4 +1,4 @@
-# Contexto do build de apps/api/Dockerfile e apps/web/Dockerfile: a raiz do monorepo.
+# Contexto do build de apps/api/Dockerfile, apps/web/Dockerfile e apps/mcp/Dockerfile: a raiz do monorepo.
 
 # Segredos: nunca entram no contexto, nem o .env.example (as imagens não usam).
 **/.env

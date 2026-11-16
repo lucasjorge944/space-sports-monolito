@@ -11,6 +11,7 @@ import {
   checkBookingTime,
   DEFAULT_BOOKING_RULES,
   openingIntervals,
+  openingPeriods,
 } from './availability';
 import type { OpeningHour } from './spaces';
 import { addDays, utcToZoned, weekdayOf, zonedToUtc } from './time';
@@ -235,5 +236,36 @@ describe('bookingEditBlocks (RN-BOOK-10 a RN-BOOK-12)', () => {
     for (const code of BOOKING_EDIT_BLOCK_CODES) {
       expect(BOOKING_EDIT_BLOCK_MESSAGES[code]).toBeTruthy();
     }
+  });
+});
+
+describe('openingPeriods (ocupação, docs/14-mcp.md 8.4)', () => {
+  const hours = (intervals: { start: Date; end: Date }[]) =>
+    intervals.reduce((sum, i) => sum + (i.end.getTime() - i.start.getTime()) / 3_600_000, 0);
+
+  it('soma o funcionamento das datas, unindo dias de 24 h', () => {
+    const periods = openingPeriods(MONDAY, addDays(MONDAY, 6), everyDay('00:00', '00:00'), TZ);
+    expect(periods).toHaveLength(1);
+    expect(hours(periods)).toBe(7 * 24);
+    expect(periods[0]?.start.toISOString()).toBe('2026-11-02T03:00:00.000Z');
+  });
+
+  it('a madrugada da véspera entra e a que passa do último dia fica de fora', () => {
+    // Aberto das 18h às 02h: na segunda entram 00h–02h (de domingo) e 18h–24h.
+    const periods = openingPeriods(MONDAY, MONDAY, everyDay('18:00', '02:00'), TZ);
+    expect(periods.map((i) => [hhmm(i.start), hhmm(i.end)])).toEqual([
+      ['00:00', '02:00'],
+      ['18:00', '00:00'],
+    ]);
+    expect(hours(periods)).toBe(8);
+  });
+
+  it('respeita o dia da semana e vários intervalos no dia', () => {
+    const openingHours: OpeningHour[] = [
+      { weekday: 1, opensAt: '08:00', closesAt: '12:00' },
+      { weekday: 1, opensAt: '14:00', closesAt: '22:00' },
+    ];
+    expect(hours(openingPeriods(MONDAY, addDays(MONDAY, 6), openingHours, TZ))).toBe(12);
+    expect(openingPeriods(addDays(MONDAY, 1), addDays(MONDAY, 1), openingHours, TZ)).toEqual([]);
   });
 });

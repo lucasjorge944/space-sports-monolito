@@ -8,7 +8,8 @@ import {
   type SuperMetricsQuery,
   superMetricsQuerySchema,
 } from '@space-sports/shared';
-import { ApiAuth, SuperOnly } from '../auth/decorators.js';
+import { ApiAuth, OAuthScopes, OAuthView, SuperOnly } from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi.js';
 import { InsightsService } from './insights.service.js';
@@ -23,6 +24,8 @@ export class SuperInsightsController {
   constructor(private readonly service: InsightsService) {}
 
   @Get('metrics/spaces')
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.superMetrics)
   @ApiOperation({
     operationId: 'superSpaceMetrics',
     summary: 'Métricas de uso por espaço',
@@ -38,6 +41,8 @@ export class SuperInsightsController {
   }
 
   @Get('audit-logs')
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.auditLogPage)
   @ApiOperation({
     operationId: 'superListAuditLogs',
     summary: 'Log de auditoria global, mais recente primeiro',

@@ -18,6 +18,8 @@
         "diskSizeGb": 20,
         "webSubdomain": "staging",
         "apiSubdomain": "api-staging",
+        "mcpSubdomain": "mcp-staging",
+        "mcpAdminSubdomain": "mcp-admin-staging",
         "parameterPrefix": "/space-sports/staging",
         "autoStopCron": "cron(0 20 * * ? *)"
       }

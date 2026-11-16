@@ -30,8 +30,16 @@ import {
   type SuperUsersQuery,
   superUsersQuerySchema,
 } from '@space-sports/shared';
-import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser, SuperOnly } from '../auth/decorators.js';
+import type { AuthUser, OAuthAccess } from '../auth/auth-context.js';
+import {
+  ApiAuth,
+  CurrentOAuth,
+  CurrentUser,
+  OAuthScopes,
+  OAuthView,
+  SuperOnly,
+} from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { optionalBody, ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiUuidParam, ApiZodBody, ApiZodQuery, ApiZodResponse } from '../openapi/zod-openapi.js';
@@ -51,17 +59,27 @@ export class SuperUsersController {
   constructor(private readonly service: SuperUsersService) {}
 
   @Get()
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.superUserList)
   @ApiOperation({
     operationId: 'superListUsers',
-    summary: 'Buscar usuários (nome, e-mail ou telefone)',
+    summary: 'Buscar usuários (nome, e-mail ou telefone; pelo MCP, só nome)',
+    description:
+      '`q` procura parte do nome, do e-mail ou do telefone. Com o token do MCP (conector da plataforma, decisão 122), procura só no nome, e a resposta sai sem e-mail e sem telefone: a busca por contato revelaria o contato por tentativas.',
   })
   @ApiZodQuery(superUsersQuerySchema)
   @ApiZodResponse(schemas.userList)
-  list(@Query(new ZodValidationPipe(superUsersQuerySchema)) query: SuperUsersQuery) {
-    return this.service.list(query);
+  list(
+    @Query(new ZodValidationPipe(superUsersQuerySchema)) query: SuperUsersQuery,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
+  ) {
+    // Pelo MCP, a busca é só pelo nome (decisão 122).
+    return this.service.list(query, { contactSearch: !oauth });
   }
 
   @Get(':userId')
+  @OAuthScopes('super:read')
+  @OAuthView(mcpViews.superUser)
   @ApiUuidParam('userId')
   @ApiOperation({
     operationId: 'superGetUser',

@@ -2,8 +2,12 @@
 appId: ${APP_ID}
 ---
 - clearState
+# O Maestro dá todas as permissões por padrão; sem localização a busca não usa raio (os espaços do
+# seed não têm coordenadas) e a ordem padrão é "Por nome".
 - launchApp:
     clearState: true
+    permissions:
+      location: deny
 # Primeiro acesso: onboarding da permissão de localização (a busca funciona sem ela).
 - runFlow:
     when:
@@ -27,6 +31,17 @@ appId: ${APP_ID}
 - hideKeyboard
 - tapOn:
     id: "login-entrar"
+# No app atual o onboarding da localização abre depois do login (primeiro acesso): espera a tela
+# assentar e trata se aparecer.
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      visible:
+        id: "localizacao-agora-nao"
+    commands:
+      - tapOn:
+          id: "localizacao-agora-nao"
 # Logo horizontal e sino no cabeçalho fixo das abas.
 - assertVisible:
     id: "explorar-logo"

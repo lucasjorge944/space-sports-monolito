@@ -9,3 +9,5 @@ appId: ${APP_ID}
       LOGIN_PASSWORD: ${PLAYER_PASSWORD}
 - runScript:
     file: ../scripts/delete-my-review.js
+    env:
+      API_TOKEN: ${output.API_TOKEN}

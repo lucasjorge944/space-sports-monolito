@@ -475,8 +475,13 @@ describe('entrega e métricas dos anúncios', () => {
       expect(remaining.some((row) => row.deliveryId === oldToken.claims.deliveryId)).toBe(false);
       expect(remaining.some((row) => row.deliveryId === fresh.claims.deliveryId)).toBe(true);
       expect(remaining.every((row) => row.expiresAt.getTime() >= Date.now())).toBe(true);
-      // Os contadores ficam.
-      expect((await statsOf(creativeId))[0]?.impressions).toBe(2);
+      // Os contadores ficam. Somados: perto da meia-noite de São Paulo, a impressão de 3 h atrás cai
+      // no dia anterior e as duas ficam em linhas diárias diferentes.
+      const impressions = (await statsOf(creativeId)).reduce(
+        (sum, row) => sum + row.impressions,
+        0,
+      );
+      expect(impressions).toBe(2);
     });
   });
 

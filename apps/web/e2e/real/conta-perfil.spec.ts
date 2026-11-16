@@ -101,7 +101,7 @@ test('RF-AUTH-01 (decisão 70): "Pular" não grava nada, e o mesmo telefone pode
   await fillAccountStep(page, 'Conta Pulou', SKIPPED, SHARED_PHONE_MASKED);
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await expect(page.getByRole('heading', { name: 'Sobre você' })).toBeVisible();
-  await page.getByRole('button', { name: 'Pular' }).click();
+  await page.getByRole('link', { name: 'Pular' }).click();
   await expect(page).toHaveURL(/\/verificar-email/);
 
   expect(await meOf(page)).toMatchObject({
@@ -185,7 +185,7 @@ test('decisão 66: conta sem telefone é levada ao "completar cadastro" antes do
   await expect(page.getByRole('heading', { name: 'Sobre você' })).toBeVisible({
     timeout: LANDING_TIMEOUT_MS,
   });
-  await page.getByRole('button', { name: 'Pular' }).click();
+  await page.getByRole('link', { name: 'Pular' }).click();
   await expectLanding(page, /\/super\/usuarios$|\/super\/perfil$|\/super$/);
 
   expect(await meOf(page)).toMatchObject({

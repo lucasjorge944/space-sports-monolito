@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, LogOut, UserRound } from 'lucide-react';
+import { ChevronDown, LogOut, Plug, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
@@ -14,10 +14,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { CONNECTED_APPS_PATH } from '@/lib/auth/oauth';
 import { signOut } from '@/lib/auth/sign-out';
 import { useMe } from '@/lib/auth/use-me';
 
-/** Menu da conta na barra superior: quem está logado (foto ou iniciais), "Meu perfil" e "Sair". */
+/** Menu da conta na barra superior: quem está logado (foto ou iniciais), "Meu perfil", "Apps conectados" e "Sair". */
 export function UserMenu() {
   const { data: me } = useMe();
   const pathname = usePathname();
@@ -57,6 +58,12 @@ export function UserMenu() {
           <Link href={profileHref}>
             <UserRound className="size-4" />
             Meu perfil
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={CONNECTED_APPS_PATH}>
+            <Plug className="size-4" />
+            Apps conectados
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem

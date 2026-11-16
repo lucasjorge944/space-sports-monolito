@@ -13,7 +13,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-staging.spacesports.com.br"
+        "EXPO_PUBLIC_API_URL": "https://api-staging.spacesports.com.br",
+        "EXPO_PUBLIC_MCP_URL": "https://mcp-staging.spacesports.com.br/mcp"
       }
     },
     "production": {
@@ -26,7 +27,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.spacesports.com.br"
+        "EXPO_PUBLIC_API_URL": "https://api.spacesports.com.br",
+        "EXPO_PUBLIC_MCP_URL": "https://mcp.spacesports.com.br/mcp"
       }
     }
   }

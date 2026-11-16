@@ -73,6 +73,8 @@ import {
 import { type BookableSpace, type SpaceContext, SpaceContextService } from './space-context.js';
 
 type BookingRow = typeof bookings.$inferSelect;
+/** Canal da criação da reserva (RN-MCP-03). */
+type BookingChannel = BookingRow['channel'];
 
 /** Reservas avulsas e de balcão: criação, cancelamento, conclusão, no-show e listagens. */
 @Injectable()
@@ -99,6 +101,8 @@ export class BookingsService {
     userId: string,
     input: CreateBookingInput,
     idempotencyKey?: string,
+    /** RN-MCP-03: `MCP` quando a reserva vem do assistente conectado (token do MCP). */
+    channel: BookingChannel = 'DIRECT',
   ): Promise<PlayerBookingDetail> {
     // O mesmo pedido com a mesma chave devolve a reserva; outro pedido com ela é recusado (o token
     // do cartão fica de fora: cada tokenização do mesmo cartão gera outro).
@@ -156,6 +160,7 @@ export class BookingsService {
         guestName: null,
         guestPhone: null,
         source: 'APP',
+        channel,
         status: pending ? 'PENDING_PAYMENT' : 'CONFIRMED',
         paymentDueAt: pending
           ? new Date(
@@ -300,6 +305,7 @@ export class BookingsService {
       guestName: string | null;
       guestPhone: string | null;
       source: 'APP' | 'DESK';
+      channel?: BookingChannel;
       status?: 'CONFIRMED' | 'PENDING_PAYMENT';
       paymentDueAt?: Date | null;
       idempotencyKey?: string | null;
@@ -330,6 +336,7 @@ export class BookingsService {
             paymentStatus: priceCents === 0 ? 'PAID' : 'PENDING',
             intendedPaymentMethod: input.intendedPaymentMethod ?? null,
             source: input.source,
+            channel: input.channel ?? 'DIRECT',
             paymentDueAt: input.paymentDueAt ?? null,
             idempotencyKey: input.idempotencyKey ?? null,
             idempotencyRequestHash: input.idempotencyRequestHash ?? null,
@@ -704,7 +711,17 @@ export class BookingsService {
   async listForSpace(
     spaceId: string,
     query: SpaceBookingsQuery,
-    { money }: { money: boolean },
+    {
+      money,
+      contactSearch = true,
+    }: {
+      money: boolean;
+      /**
+       * Busca `q` também no telefone do cliente de balcão. Falso com o token do MCP (decisão
+       * 122): a busca vira um oráculo do contato, mesmo sem ele na resposta.
+       */
+      contactSearch?: boolean;
+    },
   ): Promise<SpaceBookingPage> {
     const pattern = query.q ? `%${query.q.replace(/[\\%_]/g, '\\$&')}%` : undefined;
     const where = and(
@@ -720,7 +737,7 @@ export class BookingsService {
       pattern
         ? or(
             ilike(bookings.guestName, pattern),
-            ilike(bookings.guestPhone, pattern),
+            contactSearch ? ilike(bookings.guestPhone, pattern) : undefined,
             ilike(users.name, pattern),
           )
         : undefined,

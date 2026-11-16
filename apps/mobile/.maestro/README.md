@@ -42,7 +42,9 @@ não usa dados de espaços parceiros).
    como `APP_ID` (no Expo Go, `host.exp.exponent`, abrindo antes o projeto).
 4. Rode: `maestro test -e APP_ID=<id> .maestro/flows`.
 
-Os fluxos de pagamento precisam da API com `PAYMENTS_PROVIDER=fake` e `JOBS_ENABLED=true` (a fila entrega os webhooks do fake e vence os holds). Atenção: o `playwright.real.config.ts` sobe a API com `JOBS_ENABLED=false`, e o fake entrega os webhooks em `PAYMENTS_FAKE_WEBHOOK_URL`, que por padrão aponta para a porta 3333. Numa API em outra porta (a 3335 dos exemplos), sem os jobs ligados e sem `PAYMENTS_FAKE_WEBHOOK_URL=http://127.0.0.1:<porta da API>/v1/webhooks/payments/fake`, o Pix pago pelo simulador nunca confirma e os fluxos esperam até estourar o prazo. O ambiente certo está em `apps/web/playwright.real-payments.config.ts` (também `PAYMENTS_FAKE_APPROVAL_DELAY_MS`, que encurta a aprovação do cadastro). Eles chamam a API por scripts no endereço `API_URL` do `env` do fluxo (padrão `http://10.0.2.2:3335`, o da API vista do emulador): passe outro com `-e API_URL=...`.
+No build de release (`--variant release`), o Android bloqueia HTTP sem TLS: para apontar para a API local, crie `android/app/src/release/AndroidManifest.xml` (pasta ignorada pelo git) com `android:usesCleartextTraffic="true"`, como o de `src/debug`. O Expo Go não serve, porque os fluxos limpam o estado do app.
+
+Os fluxos de pagamento precisam da API com `PAYMENTS_PROVIDER=fake` e `JOBS_ENABLED=true` (a fila entrega os webhooks do fake e vence os holds). Atenção: o `playwright.real.config.ts` sobe a API com `JOBS_ENABLED=false`, e o fake entrega os webhooks em `PAYMENTS_FAKE_WEBHOOK_URL`, que por padrão aponta para a porta 3333. Numa API em outra porta (a 3335 dos exemplos), sem os jobs ligados e sem `PAYMENTS_FAKE_WEBHOOK_URL=http://127.0.0.1:<porta da API>/v1/webhooks/payments/fake`, o Pix pago pelo simulador nunca confirma e os fluxos esperam até estourar o prazo. O ambiente certo está em `apps/web/playwright.real-payments.config.ts` (também `PAYMENTS_FAKE_APPROVAL_DELAY_MS`, que encurta a aprovação do cadastro). Eles chamam a API por scripts no endereço `API_URL` do `env` do fluxo (padrão `http://localhost:3335`): os scripts do Maestro rodam no computador, não no emulador, então o endereço é o da API vista da máquina (o `10.0.2.2` só vale dentro do emulador). O `env` do fluxo prevalece sobre `-e`; para outra porta, edite o fluxo.
 
 Scripts e subfluxos do pagamento online (reaproveite nos fluxos novos):
 
@@ -78,7 +80,7 @@ no fim, então podem ser repetidos sem re-semear. Para começar do zero, rode o 
 O fluxo usa `id:` (o `testID` do app; vira `resource-id` no Android e `accessibilityIdentifier` no iOS)
 em vez de texto ou `accessibilityLabel`, para não quebrar quando um texto mudar. Convenções dos ids:
 
-- Prefixo da tela, em português, kebab-case: `cadastro-`, `alterar-senha-`, `sobre-voce-`, `completar-perfil-`, `editar-perfil-`, `perfil-`, `login-`, `localizacao-`, `explorar-`, `busca-`, `filtros-` (folha de filtros),
+- Prefixo da tela, em português, kebab-case: `cadastro-`, `alterar-senha-`, `sobre-voce-`, `completar-perfil-`, `editar-perfil-`, `perfil-`, `login-`, `localizacao-`, `explorar-`, `busca-`, `apps-conectados-` (Apps conectados da Conta; sem fluxo Maestro por enquanto, a MCP.5 cobre ponta a ponta), `filtros-` (folha de filtros),
   `espaco-`, `reservar-`, `agenda-`, `reserva-` (detalhe) e `tab-` (abas). Avaliações:
   `avaliar-` (tela de avaliar), `avaliacoes-` e `avaliacao-item-<id>`/`avaliacao-menu-<id>` (lista),
   `denuncia-`, `minhas-avaliacoes`, `selo-avaliacao`/`selo-novo` (card e callout) — a lista completa

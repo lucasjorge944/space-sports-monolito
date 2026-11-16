@@ -31,14 +31,17 @@ import {
   confirmSuggestedUserSchema,
   createBookingSchema,
   createInvitesSchema,
+  missingProfileFields,
   myBookingsQuerySchema,
   updateBookingSchema,
 } from '@space-sports/shared';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { z } from 'zod';
+import { oauthPaymentOptionNotAllowed, profileIncomplete } from '../auth/auth.errors.js';
 import { AuthService } from '../auth/auth.service.js';
-import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser, Public } from '../auth/decorators.js';
+import type { AuthenticatedRequest, AuthUser, OAuthAccess } from '../auth/auth-context.js';
+import { ApiAuth, CurrentOAuth, CurrentUser, OAuthScopes, Public } from '../auth/decorators.js';
+import { bookingDetailForOAuth, bookingPageForOAuth } from '../auth/oauth-views.js';
 import { ErrorResponseDto } from '../common/error-response.js';
 import { uuidParam } from '../common/uuid-param.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -72,6 +75,7 @@ export class AvailabilityController {
 
   @Get()
   @Public()
+  @OAuthScopes('spaces:read')
   @ApiOperation({
     operationId: 'getSpaceAvailability',
     summary: 'Grade de horários livres por quadra (público)',
@@ -100,11 +104,14 @@ export class AvailabilityController {
   async get(
     @Param('spaceId', uuidParam) spaceId: string,
     @Query(new ZodValidationPipe(availabilityQuerySchema)) query: AvailabilityQueryDto,
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AvailabilityResponseDto> {
-    // A rota não lê a sessão (`@Public`); só ignorar uma reserva depende de quem pede.
-    const auth = query.excludeBookingId ? await this.auth.requireSession(req, res) : undefined;
+    // A rota não lê a sessão (`@Public`); só ignorar uma reserva depende de quem pede. Com o token
+    // do MCP, o guard já resolveu o usuário em `req.auth`.
+    const auth = query.excludeBookingId
+      ? (req.auth ?? (await this.auth.requireSession(req, res)))
+      : undefined;
     return this.availability.forDate(spaceId, query, auth?.user.id);
   }
 }
@@ -120,12 +127,13 @@ export class BookingsController {
   ) {}
 
   @Post()
+  @OAuthScopes('bookings:write')
   @ApiIdempotencyKey()
   @ApiOperation({
     operationId: 'createBooking',
     summary: 'Reservar um horário',
     description:
-      'RF-BOOK-01, RN-BOOK-01..07. Preço recalculado pela API. Conflito de horário (inclusive concorrente) responde 409 `SLOT_UNAVAILABLE`. Pagamento online (RF-ONPAY-03, RN-ONPAY-02): `paymentOption` conforme o modo do espaço; em `ONLINE_REQUIRED` a reserva nasce `PENDING_PAYMENT` com `paymentDueAt` (15 min) e `ON_SITE` responde 422 `ONLINE_PAYMENT_REQUIRED`; nos outros modos nasce confirmada. Forma online sem o modo permitir: 422 `ONLINE_PAYMENT_UNAVAILABLE`. A cobrança vem em `onlinePayment` (Pix com QR e copia e cola; cartão aprovado já confirma; recusado deixa a reserva aguardando e a nova tentativa vai para `POST /v1/bookings/{id}/payment`). A mesma `Idempotency-Key` com o mesmo pedido devolve a reserva já criada (decisão 96); com outro pedido (quadra, esporte, horário, duração, pessoas, forma pretendida ou `paymentOption`; o `cardToken` não conta), 422 `IDEMPOTENCY_KEY_REUSED`.',
+      'RF-BOOK-01, RN-BOOK-01..07. Preço recalculado pela API. Conflito de horário (inclusive concorrente) responde 409 `SLOT_UNAVAILABLE`. Pagamento online (RF-ONPAY-03, RN-ONPAY-02): `paymentOption` conforme o modo do espaço; em `ONLINE_REQUIRED` a reserva nasce `PENDING_PAYMENT` com `paymentDueAt` (15 min) e `ON_SITE` responde 422 `ONLINE_PAYMENT_REQUIRED`; nos outros modos nasce confirmada. Forma online sem o modo permitir: 422 `ONLINE_PAYMENT_UNAVAILABLE`. A cobrança vem em `onlinePayment` (Pix com QR e copia e cola; cartão aprovado já confirma; recusado deixa a reserva aguardando e a nova tentativa vai para `POST /v1/bookings/{id}/payment`). A mesma `Idempotency-Key` com o mesmo pedido devolve a reserva já criada (decisão 96); com outro pedido (quadra, esporte, horário, duração, pessoas, forma pretendida ou `paymentOption`; o `cardToken` não conta), 422 `IDEMPOTENCY_KEY_REUSED`. Com o token do MCP (`bookings:write`, decisão 115): só `ON_SITE` ou `ONLINE_PIX`; `ONLINE_CARD` responde 403 `OAUTH_PAYMENT_OPTION_NOT_ALLOWED`, e a reserva fica com o canal `MCP`. Também com o token do MCP (decisão 119), conta sem nome ou telefone responde 422 `PROFILE_INCOMPLETE`, com `details.missing` (os campos de `profile.missing` do `GET /v1/me`).',
   })
   @ApiCreatedResponse({ type: PlayerBookingDetailDto })
   @ApiNotFoundResponse({
@@ -135,40 +143,62 @@ export class BookingsController {
   @ApiConflictResponse({ description: '`SLOT_UNAVAILABLE`.', type: ErrorResponseDto })
   @ApiUnprocessableEntityResponse({
     description:
-      '`SPACE_NOT_BOOKABLE`, `COURT_UNAVAILABLE`, `SPORT_NOT_OFFERED`, `PEOPLE_EXCEED_CAPACITY`, `INVALID_DURATION`, `DURATION_OUT_OF_RANGE`, `MISALIGNED_START`, `OUTSIDE_OPENING_HOURS`, `BOOKING_IN_THE_PAST`, `BOOKING_TOO_SOON`, `BOOKING_BEYOND_WINDOW`.',
+      '`SPACE_NOT_BOOKABLE`, `COURT_UNAVAILABLE`, `SPORT_NOT_OFFERED`, `PEOPLE_EXCEED_CAPACITY`, `INVALID_DURATION`, `DURATION_OUT_OF_RANGE`, `MISALIGNED_START`, `OUTSIDE_OPENING_HOURS`, `BOOKING_IN_THE_PAST`, `BOOKING_TOO_SOON`, `BOOKING_BEYOND_WINDOW`; com o token do MCP, `PROFILE_INCOMPLETE` (conta sem nome ou telefone).',
     type: ErrorResponseDto,
   })
-  create(
+  async create(
     @CurrentUser() user: AuthUser,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
     @IdempotencyKey() idempotencyKey: string | undefined,
     @Body(new ZodValidationPipe(createBookingSchema)) body: CreateBookingDto,
   ): Promise<PlayerBookingDetailDto> {
-    return this.bookings.createForPlayer(user.id, body, idempotencyKey);
+    // Decisão 119 (defesa em profundidade): pelo assistente, o organizador tem nome e telefone,
+    // para o espaço conseguir falar com ele. O consentimento e a emissão do token já exigem.
+    const missing = oauth ? missingProfileFields(user) : [];
+    if (missing.length) throw profileIncomplete(missing);
+    // Decisão 115: pelo assistente, só no espaço ou Pix; dado de cartão nunca passa pelo chat.
+    // (O schema já exige `cardToken` junto com `ONLINE_CARD`.)
+    if (oauth && body.paymentOption === 'ONLINE_CARD') {
+      throw oauthPaymentOptionNotAllowed();
+    }
+    const detail = await this.bookings.createForPlayer(
+      user.id,
+      body,
+      idempotencyKey,
+      oauth ? 'MCP' : 'DIRECT',
+    );
+    return oauth ? bookingDetailForOAuth(detail, user.id) : detail;
   }
 
   @Get()
+  @OAuthScopes('bookings:read')
   @ApiOperation({
     operationId: 'listMyBookings',
     summary: 'Minhas reservas (próximas ou passadas)',
     description: 'RF-BOOK-03: reservas que organizo ou em que aceitei o convite.',
   })
   @ApiOkResponse({ type: PlayerBookingPageDto })
-  listMine(
+  async listMine(
     @CurrentUser() user: AuthUser,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
     @Query(new ZodValidationPipe(myBookingsQuerySchema)) query: MyBookingsQueryDto,
   ): Promise<PlayerBookingPageDto> {
-    return this.bookings.listMine(user.id, query);
+    const page = await this.bookings.listMine(user.id, query);
+    return oauth ? bookingPageForOAuth(page, user.id) : page;
   }
 
   @Get(':bookingId')
+  @OAuthScopes('bookings:read')
   @ApiOperation({ operationId: 'getMyBooking', summary: 'Detalhe de uma reserva minha' })
   @ApiOkResponse({ type: PlayerBookingDetailDto })
   @ApiNotFoundResponse({ description: '`BOOKING_NOT_FOUND`.', type: ErrorResponseDto })
-  getMine(
+  async getMine(
     @CurrentUser() user: AuthUser,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
     @Param('bookingId', uuidParam) bookingId: string,
   ): Promise<PlayerBookingDetailDto> {
-    return this.bookings.getMine(user.id, bookingId);
+    const detail = await this.bookings.getMine(user.id, bookingId);
+    return oauth ? bookingDetailForOAuth(detail, user.id) : detail;
   }
 
   @Patch(':bookingId')
@@ -203,6 +233,7 @@ export class BookingsController {
   }
 
   @Post(':bookingId/cancel')
+  @OAuthScopes('bookings:write')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     operationId: 'cancelMyBooking',
@@ -216,12 +247,14 @@ export class BookingsController {
     description: '`CANCELLATION_DEADLINE_PASSED` ("fale com o espaço").',
     type: ErrorResponseDto,
   })
-  cancel(
+  async cancel(
     @CurrentUser() user: AuthUser,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
     @Param('bookingId', uuidParam) bookingId: string,
     @Body(new ZodValidationPipe(cancelBookingSchema)) body: CancelBookingDto,
   ): Promise<PlayerBookingDetailDto> {
-    return this.bookings.cancelByPlayer(user.id, bookingId, body);
+    const detail = await this.bookings.cancelByPlayer(user.id, bookingId, body);
+    return oauth ? bookingDetailForOAuth(detail, user.id) : detail;
   }
 
   @Post(':bookingId/invites')

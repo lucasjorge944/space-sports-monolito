@@ -13,8 +13,9 @@ import {
   type MyClassSessionsResponse,
   myClassSessionsQuerySchema,
 } from '@space-sports/shared';
-import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser } from '../auth/decorators.js';
+import type { AuthUser, OAuthAccess } from '../auth/auth-context.js';
+import { ApiAuth, CurrentOAuth, CurrentUser, OAuthScopes } from '../auth/decorators.js';
+import { classSessionDetailForOAuth } from '../auth/oauth-views.js';
 import { ErrorResponseDto } from '../common/error-response.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -41,6 +42,7 @@ export class MeClassesController {
   constructor(private readonly attendance: AttendanceService) {}
 
   @Get()
+  @OAuthScopes('classes:read')
   @ApiOperation({
     operationId: 'listMyClassSessions',
     summary: 'Aulas da semana/dia das turmas do aluno (RF-CLASS-07)',
@@ -61,6 +63,7 @@ export class MeClassesController {
   }
 
   @Get(':sessionId')
+  @OAuthScopes('classes:read')
   @ApiUuidParam('sessionId')
   @ApiOperation({
     operationId: 'getMyClassSession',
@@ -68,14 +71,17 @@ export class MeClassesController {
   })
   @ApiZodResponse(attendanceSchemas.myClassSessionDetail)
   @notFound
-  get(
+  async get(
     @CurrentUser() user: AuthUser,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
     @Param('sessionId', sessionIdPipe) id: string,
   ): Promise<MyClassSessionDetail> {
-    return this.attendance.getMine(user.id, id);
+    const detail = await this.attendance.getMine(user.id, id);
+    return oauth ? classSessionDetailForOAuth(detail, user.id) : detail;
   }
 
   @Post(':sessionId/attendance')
+  @OAuthScopes('classes:write')
   @HttpCode(HttpStatus.OK)
   @ApiUuidParam('sessionId')
   @ApiOperation({
@@ -96,14 +102,17 @@ export class MeClassesController {
       '`ATTENDANCE_LIST_NOT_OPEN`, `ALREADY_IN_SESSION`, `CLASS_SESSION_OVERLAP` (o aluno já está confirmado ou na espera de outra aula que se sobrepõe a esta, em qualquer espaço; `details.conflict`: nome da turma, espaço, início e fim, sem a situação do aluno na lista dela).',
     type: ErrorResponseDto,
   })
-  confirm(
+  async confirm(
     @CurrentUser() user: AuthUser,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
     @Param('sessionId', sessionIdPipe) id: string,
   ): Promise<MyClassSessionDetail> {
-    return this.attendance.confirm(user.id, id);
+    const detail = await this.attendance.confirm(user.id, id);
+    return oauth ? classSessionDetailForOAuth(detail, user.id) : detail;
   }
 
   @Delete(':sessionId/attendance')
+  @OAuthScopes('classes:write')
   @ApiUuidParam('sessionId')
   @ApiOperation({
     operationId: 'withdrawMyClassSession',
@@ -118,10 +127,12 @@ export class MeClassesController {
     description: '`NOT_IN_SESSION`, `ATTENDANCE_LIST_NOT_OPEN`, `CANCEL_DEADLINE_PASSED`.',
     type: ErrorResponseDto,
   })
-  withdraw(
+  async withdraw(
     @CurrentUser() user: AuthUser,
+    @CurrentOAuth() oauth: OAuthAccess | undefined,
     @Param('sessionId', sessionIdPipe) id: string,
   ): Promise<MyClassSessionDetail> {
-    return this.attendance.withdraw(user.id, id);
+    const detail = await this.attendance.withdraw(user.id, id);
+    return oauth ? classSessionDetailForOAuth(detail, user.id) : detail;
   }
 }

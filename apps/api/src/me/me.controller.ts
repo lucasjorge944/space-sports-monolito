@@ -12,13 +12,15 @@ import {
 import {
   type AccountDeletionReceipt,
   type MeResponse,
+  type MeSummary,
   type RequestAccountDeletionInput,
   requestAccountDeletionSchema,
   type StaffSpacesResponse,
   type UpdateProfile,
 } from '@space-sports/shared';
 import type { AuthenticatedRequest, AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser } from '../auth/decorators.js';
+import { ApiAuth, CurrentUser, OAuthScopes, OAuthView } from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { ErrorResponseDto } from '../common/error-response.js';
 import { optionalBody, ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiZodBody, ApiZodResponse } from '../openapi/zod-openapi.js';
@@ -52,6 +54,21 @@ export class MeController {
     return this.profile.me(user.id);
   }
 
+  @Get('summary')
+  // Qualquer escopo do MCP: o assistente usa o primeiro nome e os esportes na saudação. O perfil
+  // completo (GET /v1/me, com contato, nascimento, gênero e papéis) não aceita o token do MCP.
+  @OAuthScopes()
+  @ApiOperation({
+    operationId: 'getMySummary',
+    summary: 'Primeiro nome e esportes favoritos (assistente conectado)',
+    description:
+      'Docs/14-mcp.md 3.3: a única rota de conta que aceita o token do MCP (qualquer escopo). Só `id`, `firstName` (primeira palavra do nome) e `favoriteSports`, sem e-mail, telefone, nascimento, gênero, papéis nem vínculos com espaços.',
+  })
+  @ApiZodResponse(meSchemas.summary)
+  summary(@CurrentUser() user: AuthUser): Promise<MeSummary> {
+    return this.profile.summary(user);
+  }
+
   @Patch('profile')
   @ApiOperation({
     operationId: 'updateMyProfile',
@@ -77,6 +94,8 @@ export class MeController {
   }
 
   @Get('staff-spaces')
+  @OAuthScopes('manage:read')
+  @OAuthView(mcpViews.staffSpaces)
   @ApiOperation({
     operationId: 'getMyStaffSpaces',
     summary:
@@ -133,8 +152,8 @@ export class MeController {
     @Body(new ZodValidationPipe(optionalBody(requestAccountDeletionSchema)))
     body: RequestAccountDeletionInput,
   ): Promise<AccountDeletionReceipt> {
-    // O AuthGuard global garante a sessão nesta rota.
-    const sessionId = req.auth?.session.id ?? '';
+    // O AuthGuard global garante a sessão nesta rota (o token do MCP não entra aqui).
+    const sessionId = req.auth?.session?.id ?? '';
     return this.account.requestDeletion(user.id, sessionId, body);
   }
 }

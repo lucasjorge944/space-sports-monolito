@@ -19,8 +19,8 @@
     "eas-build-post-install": "pnpm --filter \"@space-sports/mobile^...\" run build"
   },
   "dependencies": {
-    "@better-auth/core": "1.7.12",
-    "@better-auth/expo": "1.7.12",
+    "@better-auth/core": "1.7.20",
+    "@better-auth/expo": "1.7.20",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/space-grotesk": "^0.4.1",
     "@rn-primitives/portal": "^1.5.3",
@@ -31,7 +31,7 @@
     "@space-sports/shared": "workspace:*",
     "@space-sports/ui-tokens": "workspace:*",
     "@tanstack/react-query": "5.104.5",
-    "better-auth": "1.7.12",
+    "better-auth": "1.7.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "~58.0.19",

@@ -25,6 +25,20 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: '/v1/:path*', destination: `${apiUrl}/v1/:path*` }];
   },
+  // Anti-clickjacking no site todo: o consentimento do MCP (`/autorizar`) e o painel não podem ser
+  // enquadrados por outra origem. Nada no web nem no app depende de ser enquadrado (sem iframe nem
+  // WebView). `frame-ancestors` vale nos navegadores atuais; `X-Frame-Options` cobre os antigos.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'X-Frame-Options', value: 'DENY' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

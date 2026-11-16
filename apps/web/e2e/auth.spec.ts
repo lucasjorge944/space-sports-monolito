@@ -165,7 +165,7 @@ test.describe('cadastro', () => {
     await expect(page).toHaveURL(/\/cadastro\/sobre-voce\?next=%2Fverificar-email/);
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Sobre você' })).toBeVisible();
-    await page.getByRole('button', { name: 'Pular' }).click();
+    await page.getByRole('link', { name: 'Pular' }).click();
 
     await expect(page).toHaveURL(/\/verificar-email\?email=novo%40exemplo\.com/);
     await expect(page.getByText('novo@exemplo.com').first()).toBeVisible();

@@ -58,6 +58,7 @@ function authFor(db: Database) {
     redis,
     events: new InProcessDomainEvents(),
     storage: new DisabledPhotoStorage(),
+    cimdFetch: fetch,
   });
 }
 

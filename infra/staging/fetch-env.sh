@@ -28,10 +28,14 @@ require() {
   }
 }
 
-for group in api postgres seed; do fetch_group "$group"; done
+for group in api postgres seed mcp; do fetch_group "$group"; done
 
 require api DATABASE_URL
 require api BETTER_AUTH_SECRET
 require api ADS_DELIVERY_SECRET
 require api PAYMENTS_DATA_KEY
 require postgres POSTGRES_PASSWORD
+require mcp MCP_CONFIRMATION_SECRET
+# Opcionais, sem `require`: as chaves de emergência (api/MCP_ENABLED, api/MCP_ADMIN_ENABLED e
+# mcp/MCP_ADMIN_ENABLED) e api/MCP_ADMIN_ALLOWED_CLIENT_IDS, sem a qual a API recusa todo cliente no
+# conector do Super (o esperado até o primeiro teste).

@@ -1,0 +1,42 @@
+{
+  "name": "@space-sports/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
+    "start": "node --env-file-if-exists=.env dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "test": "vitest run --maxWorkers=2",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+  },
+  "dependencies": {
+    "@better-auth/core": "1.7.20",
+    "@better-auth/mcp": "1.7.20",
+    "@modelcontextprotocol/node": "2.1.2",
+    "@modelcontextprotocol/server": "2.4.0",
+    "@space-sports/api-client": "workspace:*",
+    "@space-sports/shared": "workspace:*",
+    "better-auth": "1.7.20",
+    "better-call": "1.4.5",
+    "pino": "10.4.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@space-sports/config": "workspace:*",
+    "@types/node": "22.20.5",
+    "jose": "6.2.13",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}

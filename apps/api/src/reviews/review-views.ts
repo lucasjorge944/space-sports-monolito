@@ -12,10 +12,10 @@ import {
   type ReviewReply,
   type ReviewTagCount,
 } from '@space-sports/shared';
-import { and, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { DbOrTx } from '../bookings/db-utils.js';
-import { spaceReviews, users } from '../db/schema/index.js';
+import { spaceReviewReports, spaceReviews, users } from '../db/schema/index.js';
 import { invalidCursor } from './reviews.errors.js';
 
 // Leitura das avaliações: formatos de resposta e paginação, comuns às rotas públicas, da pessoa,
@@ -30,6 +30,28 @@ export function toReply(row: ReviewRow): ReviewReply | null {
     repliedAt: row.repliedAt.toISOString(),
     updatedAt: row.replyUpdatedAt?.toISOString() ?? null,
   };
+}
+
+/**
+ * Avaliações com alguma denúncia de dado pessoal (`PERSONAL_DATA`, em qualquer status). Pelo MCP
+ * (decisão 122), o comentário delas não sai: o próprio registro diz que o texto pode ter contato de
+ * alguém. Na dúvida, recusa: uma denúncia descartada também conta.
+ */
+export async function personalDataReported(
+  db: DbOrTx,
+  reviewIds: readonly string[],
+): Promise<Set<string>> {
+  if (reviewIds.length === 0) return new Set();
+  const rows = await db
+    .selectDistinct({ reviewId: spaceReviewReports.reviewId })
+    .from(spaceReviewReports)
+    .where(
+      and(
+        inArray(spaceReviewReports.reviewId, [...reviewIds]),
+        eq(spaceReviewReports.reason, 'PERSONAL_DATA'),
+      ),
+    );
+  return new Set(rows.map((row) => row.reviewId));
 }
 
 /** A avaliação para o próprio autor: o comentário inteiro, mesmo oculto. */

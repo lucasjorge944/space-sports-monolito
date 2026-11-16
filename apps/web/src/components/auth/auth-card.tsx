@@ -8,18 +8,26 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 type AuthCardProps = {
   title: string;
   description?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  /** Classes do contêiner (ex.: `max-w-md` para telas com mais conteúdo, como o consentimento). */
+  className?: string;
 };
 
 /** Cartão centralizado das telas públicas de autenticação. */
-export function AuthCard({ title, description, children, footer }: AuthCardProps) {
+export function AuthCard({ title, description, children, footer, className }: AuthCardProps) {
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-2 px-4 py-8 sm:py-12">
+    <div
+      className={cn(
+        'mx-auto flex w-full max-w-sm flex-col items-center gap-2 px-4 py-8 sm:py-12',
+        className,
+      )}
+    >
       <Logo layout="vertical" width={112} />
       <Card className="w-full">
         <CardHeader>

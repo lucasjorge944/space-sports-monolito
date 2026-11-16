@@ -125,6 +125,30 @@ nomes reais (`docs/08-espacos-parceiros.md`).
   qualquer outro caminho é recusado com `account_not_linked`. Fora disso, a foto do Google entra só
   se a conta não tiver foto (decisão 71).
 
+## Servidor de autorização do MCP
+
+Detalhes em `docs/14-mcp.md` (seção 3). O Better Auth também é o servidor OAuth dos clientes MCP
+(plugins `jwt`, `mcp` e `cimd`; políticas em `src/auth/oauth-server.ts`):
+
+- Metadata RFC 8414 em `/.well-known/oauth-authorization-server/v1/auth` (fora do `/v1`);
+  `/v1/auth/oauth2/authorize`, `/token`, `/consent`, `/continue`, `/revoke` e `/v1/auth/jwks`.
+  Login e consentimento no web (`/entrar` e `/autorizar`, de `WEB_URL`).
+- Dois recursos (decisão 120; `docs/14-mcp.md` seção 8): o do jogador (`MCP_RESOURCE_URL`:
+  jogador e gestão em leitura) e o do Super (`MCP_ADMIN_RESOURCE_URL`, só `super:read`). Um token
+  vale para um recurso só; os escopos concedidos são os pedidos ∩ os que a conta pode usar
+  (`src/auth/oauth-resources.ts`), decididos no authorize e no consentimento.
+- O token do MCP (JWT, `aud` = um dos recursos) é validado no `AuthGuard` global por
+  `src/auth/oauth-access.service.ts` e só entra nas rotas com `@OAuthScopes(...)` no handler, de
+  acordo com a audiência. Rota nova não aceita o token até ganhar o decorador; rota de gestão ou do
+  Super precisa também de `@OAuthView(...)` (lista de campos permitidos, `src/auth/mcp-views.ts`) e
+  só vale em `GET`. O teste `test/mcp/mcp-token.int.test.ts` confere a lista de cada recurso. Com o
+  token do MCP, as respostas de reservas e aulas do jogador passam pela visão reduzida de
+  `src/auth/oauth-views.ts`.
+- Variáveis: `MCP_ENABLED`, `MCP_RESOURCE_URL`, `MCP_DYNAMIC_CLIENT_REGISTRATION`,
+  `MCP_RATE_LIMIT_ENABLED`, `MCP_ADMIN_RESOURCE_URL`, `MCP_ADMIN_ENABLED` e
+  `MCP_ADMIN_ALLOWED_CLIENT_IDS` (`.env.example`). Em dev, o recurso padrão é
+  `http://localhost:3340/mcp` (o `apps/mcp` local); o do Super só existe com a variável.
+
 ## Imagens Docker
 
 Imagens de produção da API (`apps/api/Dockerfile`) e do web (`apps/web/Dockerfile`), publicadas no

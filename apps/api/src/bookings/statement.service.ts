@@ -29,7 +29,7 @@ import { DB } from '../infra/database.module.js';
 import { type Cursor, decodeCursor, encodeCursor } from './db-utils.js';
 import { SpaceContextService } from './space-context.js';
 
-const SERVICE_OF_TYPE = new Map<PayableType, StatementServiceType>(
+export const SERVICE_OF_TYPE = new Map<PayableType, StatementServiceType>(
   (
     Object.entries(STATEMENT_SERVICE_PAYABLE_TYPES) as [
       StatementServiceType,
@@ -37,7 +37,7 @@ const SERVICE_OF_TYPE = new Map<PayableType, StatementServiceType>(
     ][]
   ).flatMap(([service, types]) => types.map((type) => [type, service] as const)),
 );
-const ALL_TYPES = [...SERVICE_OF_TYPE.keys()];
+export const STATEMENT_PAYABLE_TYPES = [...SERVICE_OF_TYPE.keys()];
 const CSV_BATCH = 1000;
 
 export const STATEMENT_CSV_COLUMNS = [
@@ -67,6 +67,24 @@ const participantBooking = alias(bookings, 'participant_booking');
 const num = (value: unknown) => Number(value ?? 0);
 
 /**
+ * Registros do extrato: espaço, período [from, to) por `paid_at`, forma e serviço. Também é a base
+ * do "recebido" das métricas (`analytics/revenue`).
+ */
+export function statementWhere(spaceId: string, filters: StatementFilters): SQL | undefined {
+  const types = filters.service
+    ? STATEMENT_SERVICE_PAYABLE_TYPES[filters.service]
+    : STATEMENT_PAYABLE_TYPES;
+  return and(
+    eq(paymentRecords.spaceId, spaceId),
+    gte(paymentRecords.paidAt, filters.from),
+    lt(paymentRecords.paidAt, filters.to),
+    inArray(paymentRecords.payableType, [...types]),
+    filters.method ? eq(paymentRecords.method, filters.method) : undefined,
+    filters.channel ? eq(paymentRecords.channel, filters.channel) : undefined,
+  );
+}
+
+/**
  * Extrato de recebimentos do espaço (RF-PAY-03): os registros de pagamento do aluguel (reserva,
  * partes e mensalidade do mensalista) e da mensalidade de aula num período de `paid_at`, com filtros por forma e serviço,
  * totais e CSV. Só leitura; sempre filtrado pelo `space_id` da rota.
@@ -80,7 +98,7 @@ export class StatementService {
 
   async statement(spaceId: string, query: StatementQuery): Promise<Statement> {
     const { timeZone } = await this.spaces.load(spaceId);
-    const where = this.conditions(spaceId, query);
+    const where = statementWhere(spaceId, query);
     const amount = sql<string>`coalesce(sum(${paymentRecords.amountCents}), 0)::bigint`;
     const total = sql<number>`count(*)::int`;
 
@@ -146,7 +164,7 @@ export class StatementService {
    */
   async *exportCsv(spaceId: string, filters: StatementFilters): AsyncGenerator<string> {
     const { timeZone } = await this.spaces.load(spaceId);
-    const where = this.conditions(spaceId, filters);
+    const where = statementWhere(spaceId, filters);
     yield `${CSV_BOM}${STATEMENT_CSV_COLUMNS.join(',')}\r\n`;
 
     let after: Cursor | undefined;
@@ -178,19 +196,6 @@ export class StatementService {
       if (rows.length < CSV_BATCH || !last) return;
       after = { startsAt: new Date(last.entry.paidAt), id: last.entry.id };
     }
-  }
-
-  /** Espaço, período [from, to) por `paid_at`, forma e serviço. */
-  private conditions(spaceId: string, filters: StatementFilters): SQL | undefined {
-    const types = filters.service ? STATEMENT_SERVICE_PAYABLE_TYPES[filters.service] : ALL_TYPES;
-    return and(
-      eq(paymentRecords.spaceId, spaceId),
-      gte(paymentRecords.paidAt, filters.from),
-      lt(paymentRecords.paidAt, filters.to),
-      inArray(paymentRecords.payableType, [...types]),
-      filters.method ? eq(paymentRecords.method, filters.method) : undefined,
-      filters.channel ? eq(paymentRecords.channel, filters.channel) : undefined,
-    );
   }
 
   /** Registros com pagador, quadra e item pago; keyset por (paid_at, id). */

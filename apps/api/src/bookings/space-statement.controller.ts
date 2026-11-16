@@ -13,7 +13,8 @@ import {
   statementServiceSchema,
 } from '@space-sports/shared';
 import type { Response } from 'express';
-import { ApiAuth, SpacePermission } from '../auth/decorators.js';
+import { ApiAuth, OAuthScopes, OAuthView, SpacePermission } from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ApiZodQuery, ApiZodResponse, openApiSchema } from '../openapi/zod-openapi.js';
 import { StatementService } from './statement.service.js';
@@ -35,6 +36,8 @@ export class SpaceStatementController {
   constructor(private readonly service: StatementService) {}
 
   @Get('statement')
+  @OAuthScopes('manage:finance:read')
+  @OAuthView(mcpViews.statement)
   @SpacePermission('payment.record')
   @ApiOperation({
     operationId: 'getSpaceStatement',

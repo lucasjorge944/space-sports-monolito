@@ -5,7 +5,7 @@
 # ("R$ 100,00 devolvidos ... para o seu Pix.").
 appId: ${APP_ID}
 env:
-  API_URL: http://10.0.2.2:3335
+  API_URL: http://localhost:3335
   PLAYER_EMAIL: jogador.e2e@exemplo.com
   PLAYER_NAME: Jogador E2E
   PLAYER_PASSWORD: senha-e2e-1234

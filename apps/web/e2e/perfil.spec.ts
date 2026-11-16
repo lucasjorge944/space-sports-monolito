@@ -59,7 +59,7 @@ test.describe('completar cadastro', () => {
 
     await expect(page).toHaveURL(/\/cadastro\/sobre-voce\?next=%2Fpainel$/);
     await expect(page.getByRole('heading', { name: 'Sobre você' })).toBeVisible();
-    await page.getByRole('button', { name: 'Pular' }).click();
+    await page.getByRole('link', { name: 'Pular' }).click();
     await expect(page).toHaveURL(/\/painel$/);
     const patches = (await mockCalls(request)).filter((c) => c.path === 'PATCH /v1/me/profile');
     expect(patches).toHaveLength(1);

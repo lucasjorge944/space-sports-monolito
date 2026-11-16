@@ -102,16 +102,18 @@ export class SuperUsersService {
 
   // Usuários -------------------------------------------------------------------------------------
 
-  async list(query: SuperUsersQuery) {
+  /**
+   * `contactSearch` falso (token do MCP, decisão 122): o `q` procura só no nome, porque a busca por
+   * e-mail ou telefone revelaria o contato por tentativas, mesmo sem ele na resposta.
+   */
+  async list(query: SuperUsersQuery, { contactSearch = true }: { contactSearch?: boolean } = {}) {
     const conditions: SQL[] = [];
     if (query.q) {
       const pattern = likePattern(query.q);
       conditions.push(
-        or(
-          ilike(users.name, pattern),
-          ilike(users.email, pattern),
-          ilike(users.phone, pattern),
-        ) as SQL,
+        (contactSearch
+          ? or(ilike(users.name, pattern), ilike(users.email, pattern), ilike(users.phone, pattern))
+          : ilike(users.name, pattern)) as SQL,
       );
     }
     if (query.status) conditions.push(eq(users.status, query.status));

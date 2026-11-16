@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { spaceReadOnly } from '../auth/auth.errors.js';
+import { MCP_AUDIT_ORIGIN, oauthOriginContext } from '../auth/oauth-origin-context.js';
 import { supportContext } from '../auth/support-context.js';
 import type { Database } from '../db/client.js';
 import { auditLogs, spaces } from '../db/schema/index.js';
@@ -70,14 +71,20 @@ export interface AuditEntry {
 
 /**
  * Registra uma ação sensível em audit_logs (RN-PAY-01, cancelamentos e alterações da gestão).
- * Em modo suporte (RF-SUPER-04) a linha sai com `actingAsSuper` e `supportSessionId` no diff.
+ * Em modo suporte (RF-SUPER-04) a linha sai com `actingAsSuper` e `supportSessionId` no diff; com
+ * o token do MCP (RN-MCP-03), com `origin: 'MCP'` e `oauthClientId` no diff.
  */
 export async function audit(db: DbOrTx, entry: AuditEntry): Promise<void> {
   const support = supportContext.getStore();
+  const oauth = oauthOriginContext.getStore();
+  const marks = {
+    ...(support && { supportSessionId: support.sessionId }),
+    ...(oauth && { origin: MCP_AUDIT_ORIGIN, oauthClientId: oauth.clientId }),
+  };
   await db.insert(auditLogs).values({
     ...entry,
     actingAsSuper: entry.actingAsSuper ?? support !== undefined,
-    ...(support && { diff: { ...entry.diff, supportSessionId: support.sessionId } }),
+    ...((support || oauth) && { diff: { ...entry.diff, ...marks } }),
   });
 }
 

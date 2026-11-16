@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   type FavoriteSport,
   type MeResponse,
+  type MeSummary,
   missingProfileFields,
   type UpdateProfile,
 } from '@space-sports/shared';
@@ -11,6 +12,7 @@ import { audit, type DbOrTx } from '../bookings/db-utils.js';
 import type { Database } from '../db/client.js';
 import { sports, userSportProfiles, users } from '../db/schema/index.js';
 import { DB } from '../infra/database.module.js';
+import { firstName } from '../users/normalize.js';
 import { favoriteSportNotFound } from './me.errors.js';
 
 const meColumns = {
@@ -52,6 +54,15 @@ export class ProfileService {
       profile: { missing: missingProfileFields(user) },
       memberships,
       access: { super: user.platformRole === 'SUPER', management: memberships.length > 0 },
+    };
+  }
+
+  /** GET /v1/me/summary: primeiro nome e esportes favoritos (o que o assistente conectado vê). */
+  async summary(user: { id: string; name: string }): Promise<MeSummary> {
+    return {
+      id: user.id,
+      firstName: firstName(user.name),
+      favoriteSports: await favoriteSportsOf(this.db, user.id),
     };
   }
 

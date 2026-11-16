@@ -17,6 +17,7 @@ Plataforma para encontrar espaços esportivos perto de você e contratar serviç
 | [11-ia-agentes.md](11-ia-agentes.md) | Proposta de IA e agentes (AG-UI, A2UI, A2A): onde aplicar, arquitetura e fases |
 | [12-anuncios.md](12-anuncios.md) | Anúncios de venda direta e o novo Explorar (carrossel, card patrocinado, espaços recentes) |
 | [13-pagamentos-online.md](13-pagamentos-online.md) | Pagamento online com split, carteira do espaço, taxa de serviço e pesquisa de mercado |
+| [14-mcp.md](14-mcp.md) | Servidor MCP: o Space Sports no Claude, com OAuth, escopos e as tools do jogador |
 | [landing-page/CONTEXTO.md](landing-page/CONTEXTO.md) | Contexto autocontido (produto, marca, cores, logos) para a landing page, feita em outro repositório |
 
 ## Modelo em uma linha

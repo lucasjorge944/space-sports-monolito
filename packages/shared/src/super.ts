@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { platformRoleSchema, spaceRoleSchema, spaceStatusSchema, userStatusSchema } from './auth';
+import { periodDateSchema } from './booking';
 import { centsSchema } from './money';
 import { paymentChannelSchema } from './online-payments';
 import { sportLevelSchema } from './profile';
@@ -219,10 +220,10 @@ export const supportSessionListSchema = z.object({ items: z.array(supportSession
 
 export const financeQuerySchema = z
   .object({
-    /** Data local (America/Sao_Paulo), inclusive. Padrão: dia 1 do mês atual. */
-    from: isoDate.optional(),
-    /** Data local (America/Sao_Paulo), inclusive. Padrão: hoje. */
-    to: isoDate.optional(),
+    /** Data local (America/Sao_Paulo), inclusive, de 2000-01-01 a 2100-12-31. Padrão: dia 1 do mês. */
+    from: periodDateSchema.optional(),
+    /** Data local (America/Sao_Paulo), inclusive, de 2000-01-01 a 2100-12-31. Padrão: hoje. */
+    to: periodDateSchema.optional(),
     spaceId: id.optional(),
   })
   .refine((query) => !query.from || !query.to || query.from <= query.to, {
@@ -446,9 +447,9 @@ export type CancelDeletionRequest = z.infer<typeof cancelDeletionRequestSchema>;
 // Métricas de uso por espaço (RF-SUPER-09)
 
 export const superMetricsQuerySchema = pageQuerySchema.extend({
-  /** Data local (America/Sao_Paulo), inclusive. Padrão: 30 dias até hoje. */
-  from: isoDate.optional(),
-  to: isoDate.optional(),
+  /** Data local (America/Sao_Paulo), inclusive, de 2000-01-01 a 2100-12-31. Padrão: 30 dias até hoje. */
+  from: periodDateSchema.optional(),
+  to: periodDateSchema.optional(),
   q: z.string().trim().min(1).max(100).optional(),
 });
 export type SuperMetricsQuery = z.infer<typeof superMetricsQuerySchema>;
@@ -488,9 +489,9 @@ export const auditLogQuerySchema = z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .optional(),
-    /** Datas locais (America/Sao_Paulo), inclusivas. */
-    from: isoDate.optional(),
-    to: isoDate.optional(),
+    /** Datas locais (America/Sao_Paulo), inclusivas, de 2000-01-01 a 2100-12-31. */
+    from: periodDateSchema.optional(),
+    to: periodDateSchema.optional(),
     cursor: z.string().max(500).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),
   })

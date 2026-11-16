@@ -561,6 +561,33 @@ test.describe('relatórios', () => {
     await expect(page.getByText('com no máximo 366 dias')).toBeVisible();
   });
 
+  test('digitar ano fora da faixa da API não envia a data nem quebra a tela', async ({
+    page,
+    context,
+    request,
+  }) => {
+    await loginAs(context, 'manager');
+    await page.goto('/painel/aulas/relatorios');
+    await page.getByRole('tab', { name: 'Frequência' }).click();
+    await expect(page.getByTestId('freq-done')).toHaveText('8');
+
+    const from = page.getByLabel('De', { exact: true });
+    const to = page.getByLabel('Até', { exact: true });
+    const before = await from.inputValue();
+    await from.fill('01/01/9999');
+    await expect(from).toHaveAttribute('aria-invalid', 'true');
+    await to.fill('31/12/9999');
+    await expect(to).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByTestId('freq-done')).toHaveText('8');
+    await expect(page.getByText('Algo deu errado')).toHaveCount(0);
+
+    // Ao sair do campo, volta ao valor salvo.
+    await from.blur();
+    await expect(from).toHaveValue(before);
+    const calls = (await mockCalls(request)).filter((c) => c.path.endsWith('/frequency'));
+    expect(JSON.stringify(calls)).not.toContain('9999');
+  });
+
   test('receita das mensalidades por período, com CSV', async ({ page, context, request }) => {
     await loginAs(context, 'manager');
     await page.goto('/painel/aulas/relatorios');

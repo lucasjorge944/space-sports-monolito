@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import { handleAlunos } from './mock-alunos.mjs';
 import { handleClasses } from './mock-classes.mjs';
 import { handleContacts } from './mock-contacts.mjs';
+import { handleMcp, oauthSignInBody } from './mock-mcp.mjs';
 import { handleOnlinePayments } from './mock-online-payments.mjs';
 import {
   handleReviews,
@@ -141,6 +142,15 @@ const profiles = {
     social: 'google',
     avatarUrl: 'https://lh3.googleusercontent.com/a/foto-exemplo',
     spaces: [[spaceA, ['ADMIN']]],
+  },
+  // Jogadora sem espaço e sem telefone (decisão 66): precisa completar o cadastro antes de conectar o MCP.
+  incomplete: {
+    name: 'Jogadora Lia',
+    email: 'lia@exemplo.com',
+    super: false,
+    phone: null,
+    spaces: [],
+    gender: 'FEMALE',
   },
 };
 const byEmail = Object.fromEntries(Object.entries(profiles).map(([key, p]) => [p.email, key]));
@@ -998,6 +1008,7 @@ async function route(req, res) {
     delete state().linked;
     delete state().online;
     delete state().reviews;
+    delete state().mcp;
     spaceA.logoUrl = null;
     return send(res, 200, {});
   }
@@ -1026,6 +1037,26 @@ async function route(req, res) {
     };
     return send(res, 200, {});
   }
+  const mcpSession = sessionKey(req);
+  const mcpHandled = await handleMcp({
+    req,
+    res,
+    path,
+    url,
+    send,
+    fail,
+    readJson,
+    scoped: state(),
+    calls,
+    session: mcpSession
+      ? {
+          profile: mcpSession,
+          super: Boolean(profiles[mcpSession]?.super),
+          roles: (profiles[mcpSession]?.spaces ?? []).flatMap(([, roles]) => roles),
+        }
+      : null,
+  });
+  if (mcpHandled) return;
   if (path.startsWith('/v1/me/') || path === '/v1/auth/list-accounts') {
     const key = sessionKey(req);
     if (!key) return fail(res, 401, 'UNAUTHENTICATED', 'Faça login para continuar.');
@@ -1172,6 +1203,10 @@ async function route(req, res) {
       const key = byEmail[body.email];
       if (!key || body.password !== PASSWORD) {
         return fail(res, 401, 'INVALID_EMAIL_OR_PASSWORD', 'Invalid email or password');
+      }
+      if (body.oauth_query !== undefined) {
+        const result = oauthSignInBody(body, meOf(key));
+        return send(res, result.status, result.body, result.status === 200 ? setSession(key) : {});
       }
       return send(res, 200, { redirect: false, token: key, user: meOf(key) }, setSession(key));
     }

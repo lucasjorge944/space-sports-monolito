@@ -4,7 +4,7 @@ Cliente tipado da API do Space Sports, gerado pelo [orval](https://orval.dev) a 
 
 ## Geração
 
-- `openapi.json` e `src/generated/` são **gerados e versionados**. Não edite à mão.
+- `openapi.json` e `src/generated/` (`endpoints` com os hooks, `fetch` só com as funções e `model`) são **gerados e versionados**. Não edite à mão.
 - `pnpm generate:api-client` (na raiz) faz o build da API, exporta o OpenAPI sem subir servidor (`apps/api/dist/openapi/export.js`, com env fixo e `SMS_PROVIDER=console`) e roda o orval.
 - `pnpm generate:api-client:check` (e o passo "API client up to date" da CI) falha se o versionado diferir do que a API gera agora. Mudou um controller, DTO ou as rotas de auth? Rode o `generate` e faça commit junto.
 - O nome das funções vem do `operationId`. Nas rotas do Nest, defina um explícito em `@ApiOperation({ operationId })` (ex.: `getMe`).
@@ -15,6 +15,18 @@ Cliente tipado da API do Space Sports, gerado pelo [orval](https://orval.dev) a 
 - `configureApiClient(config)`: configuração global do mutator `customFetch`, por onde passa toda requisição.
 - `ApiError` e `isApiError`: toda resposta >= 400 vira um `ApiError` com `status`, `code`, `message`, `details` e `requestId` (formato padrão `{ error: { code, message, details? }, requestId }`). Corpo fora do padrão (ex.: 502 de proxy) vira `code: 'HTTP_ERROR'`. Erro de rede continua sendo o erro do `fetch` (não é `ApiError`).
 - Reexportados de `@space-sports/shared`: `meResponseSchema`, `membershipSchema`, os schemas de enum, `SPACE_PERMISSIONS` e `canInSpace` (para esconder ações que o papel não pode fazer). Um teste garante que `MeResponseDto` e `MeResponse` têm o mesmo formato.
+
+## Sem React (servidores Node)
+
+As funções geradas em `src/generated/endpoints` importam o TanStack Query (e o React) junto com os hooks. Para um processo Node sem React, como o `apps/mcp`, o `generate` produz também `src/generated/fetch` (orval com `client: 'fetch'`, o mesmo mutator e o mesmo `model`), exposto em `dist/fetch.js`:
+
+```ts
+import { configureApiClient, getMyBooking, isApiError } from '@space-sports/api-client/dist/fetch.js';
+
+configureApiClient({ baseUrl: process.env.API_URL! });
+// Headers por chamada (ex.: o Bearer de cada usuário) têm prioridade sobre os da configuração.
+const booking = await getMyBooking(id, { headers: { Authorization: `Bearer ${token}` } });
+```
 
 ## Configuração
 

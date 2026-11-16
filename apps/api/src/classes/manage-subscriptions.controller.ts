@@ -36,7 +36,14 @@ import {
   swapClassGroupSchema,
 } from '@space-sports/shared';
 import type { AuthUser } from '../auth/auth-context.js';
-import { ApiAuth, CurrentUser, SpacePermission } from '../auth/decorators.js';
+import {
+  ApiAuth,
+  CurrentUser,
+  OAuthScopes,
+  OAuthView,
+  SpacePermission,
+} from '../auth/decorators.js';
+import { mcpViews } from '../auth/mcp-views.js';
 import { ErrorResponseDto } from '../common/error-response.js';
 import { UuidParamPipe } from '../common/uuid-param.pipe.js';
 import { optionalBody, ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -286,6 +293,8 @@ export class ManageSubscriptionsController {
   // Mensalidades
 
   @Get('subscription-charges')
+  @OAuthScopes('manage:finance:read')
+  @OAuthView(mcpViews.subscriptionCharges)
   @SpacePermission('payment.record')
   @ApiOperation({
     operationId: 'listSubscriptionCharges',
@@ -303,6 +312,8 @@ export class ManageSubscriptionsController {
   }
 
   @Get('subscription-charges/delinquents')
+  @OAuthScopes('manage:finance:read')
+  @OAuthView(mcpViews.delinquents)
   @SpacePermission('payment.record')
   @ApiOperation({
     operationId: 'listDelinquents',

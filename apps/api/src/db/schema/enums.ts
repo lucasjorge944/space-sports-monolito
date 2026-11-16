@@ -49,6 +49,11 @@ export const bookingPaymentStatus = pgEnum('booking_payment_status', [
   'PAID',
 ]);
 export const bookingSource = pgEnum('booking_source', ['APP', 'DESK', 'RECURRING']);
+/**
+ * Canal por onde a reserva foi criada (RN-MCP-03): `DIRECT` = app, web ou painel do Space Sports;
+ * `MCP` = assistente de IA conectado pelo jogador (token OAuth do MCP).
+ */
+export const bookingChannel = pgEnum('booking_channel', ['DIRECT', 'MCP']);
 /** Convites (participante da conta dividida; na Fase 3, membro de dupla). */
 export const inviteStatus = pgEnum('invite_status', ['INVITED', 'ACCEPTED', 'DECLINED']);
 export const recurringBookingStatus = pgEnum('recurring_booking_status', [

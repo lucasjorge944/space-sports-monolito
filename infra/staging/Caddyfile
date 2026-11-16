@@ -19,3 +19,20 @@ api-staging.spacesports.com.br {
 	header X-Robots-Tag "noindex, nofollow"
 	reverse_proxy api:3333
 }
+
+# Servidor MCP (docs/14-mcp.md). Sem `encode`: as respostas são JSON pequenos, e comprimir um
+# text/event-stream só atrasaria as mensagens. Sem `flush_interval`: o Caddy já repassa na hora o
+# text/event-stream e as respostas sem Content-Length; o `-1` ainda manteria a requisição aberta no
+# MCP depois de o cliente desconectar.
+mcp-staging.spacesports.com.br {
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy mcp:3340
+}
+
+# Conector do Super ("Space Sports · Plataforma", docs/14-mcp.md 8.1): o mesmo serviço `mcp`, que
+# escolhe a superfície pelo host (o `reverse_proxy` repassa o Host original). Mesmas regras do bloco
+# acima.
+mcp-admin-staging.spacesports.com.br {
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy mcp:3340
+}

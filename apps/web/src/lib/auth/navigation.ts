@@ -1,4 +1,5 @@
 import type { MeResponse } from '@space-sports/api-client';
+import { AUTHORIZE_PATH, isOAuthFlow, oauthLoginPath } from './oauth';
 
 /** Quem não tem acesso a nenhuma área do web (jogador sem vínculo com espaço). */
 export const NO_ACCESS_PATH = '/sem-acesso';
@@ -80,7 +81,10 @@ export type AccessDecision = { type: 'allow' } | { type: 'redirect'; to: string 
 const allow: AccessDecision = { type: 'allow' };
 const redirect = (to: string): AccessDecision => ({ type: 'redirect', to });
 
-function isArea(pathname: string, area: '/painel' | '/super'): boolean {
+/** Páginas da conta do jogador (fora do painel): pedem só a sessão, sem vínculo com espaço. */
+const ACCOUNT_AREA = '/conta';
+
+function isArea(pathname: string, area: '/painel' | '/super' | typeof ACCOUNT_AREA): boolean {
   return pathname === area || pathname.startsWith(`${area}/`);
 }
 
@@ -90,6 +94,12 @@ function isArea(pathname: string, area: '/painel' | '/super'): boolean {
  * - sem sessão em `/painel` ou `/super` → `/entrar?next=…`;
  * - `/super` só com `access.super`; `/painel` só com `access.management` (ou Super em modo suporte);
  * - quem já tem sessão e abre `/entrar`, `/cadastro` ou `/esqueci-senha` vai para `next` ou a área do perfil;
+ *   exceção: `/entrar` vindo do fluxo OAuth do MCP (`sig` e `client_id`) fica, para "Continuar como …";
+ * - `/autorizar` (consentimento do MCP) pede a sessão de qualquer perfil (jogador sem espaço inclusive):
+ *   sem ela volta ao `/entrar` com a mesma query assinada. No fluxo OAuth (`/entrar` e `/autorizar`),
+ *   conta com `profile.missing` vai ao `/completar-cadastro` e volta com a mesma query (decisão 66);
+ * - `/conta/*` (ex.: apps conectados) pede só a sessão, sem exigir cadastro completo, para sempre dar
+ *   para desconectar um app: sem sessão vai ao `/entrar` com `next`;
  * - `/cadastro/sobre-voce` exige sessão (é a etapa seguinte ao cadastro);
  * - conta sem nome ou telefone (`profile.missing`) não usa `/painel` nem `/super` antes do
  *   `/completar-cadastro` (decisão 66); com o cadastro completo, essa tela devolve ao `next`.
@@ -105,8 +115,25 @@ export function decideAccess(input: {
 
   if (GUEST_ONLY_PATHS.has(pathname)) {
     if (!me) return allow;
+    if (pathname === LOGIN_PATH && isOAuthFlow(new URLSearchParams(search))) {
+      // Cadastro incompleto não conecta assistente (decisão 66): completa e volta a este `/entrar`.
+      return needsProfileCompletion(me)
+        ? redirect(completeProfilePath(`${pathname}${search}`))
+        : allow;
+    }
     const next = safeNextPath(new URLSearchParams(search).get('next'));
     return redirect(next ?? destinationFor(me));
+  }
+
+  if (pathname === AUTHORIZE_PATH) {
+    if (!me) return redirect(oauthLoginPath(search.replace(/^\?/, '')));
+    // O consentimento também exige o cadastro completo (decisão 66); depois volta com a mesma query.
+    return needsProfileCompletion(me)
+      ? redirect(completeProfilePath(`${pathname}${search}`))
+      : allow;
+  }
+  if (isArea(pathname, ACCOUNT_AREA)) {
+    return me ? allow : redirect(loginPathWithNext(`${pathname}${search}`));
   }
 
   // "Sobre você" pede a sessão (grava pelo `PATCH /v1/me/profile`); sem ela, login e volta.
